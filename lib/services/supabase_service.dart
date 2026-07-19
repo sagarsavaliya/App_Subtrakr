@@ -19,7 +19,7 @@ class SupabaseService {
       return;
     }
     try {
-      await Supabase.initialize(url: url, anonKey: anonKey);
+      await Supabase.initialize(url: url, publishableKey: anonKey);
       _initialized = true;
     } catch (e) {
       debugPrint('SupabaseService.init failed (non-fatal): $e');
