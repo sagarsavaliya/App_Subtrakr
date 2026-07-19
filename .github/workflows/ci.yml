@@ -16,7 +16,10 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          # Pinned to the exact version this project is developed against
+          # (channel: stable floats to whatever's newest, which can silently
+          # start failing CI when Flutter ships stricter default lints).
+          flutter-version: '3.41.9'
           cache: true
 
       # .env is gitignored (real Supabase credentials) but declared as a
