@@ -78,6 +78,22 @@ class NotificationService {
     }
   }
 
+  /// Handles the case `onDidReceiveNotificationResponse` never covers: the
+  /// app was fully killed (not just backgrounded) and the user tapped a
+  /// reminder notification (or its Mark Paid action) to launch it. Without
+  /// this, that tap is silently dropped — call once after the widget tree
+  /// (and NotificationActionBridge) is ready.
+  static Future<void> checkLaunchDetails() async {
+    try {
+      final details = await _plugin.getNotificationAppLaunchDetails();
+      if (details?.didNotificationLaunchApp == true && details!.notificationResponse != null) {
+        _handleResponse(details.notificationResponse!);
+      }
+    } catch (e) {
+      debugPrint('NotificationService.checkLaunchDetails failed (non-fatal): $e');
+    }
+  }
+
   static int _notificationId(String subscriptionId) => subscriptionId.hashCode & 0x7fffffff;
 
   static Future<void> scheduleReminder(SubscriptionModel sub) async {
