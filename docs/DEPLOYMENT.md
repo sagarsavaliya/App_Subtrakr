@@ -86,13 +86,16 @@ nginx directly while still verifying the real TLS certificate.
 
 ### One-time manual steps (root on the VPS — the runner can't do these)
 
-1. DNS at Hostinger: `A` records for `subtrakr.me`, `www.subtrakr.me`, and
-   `app.subtrakr.me` → the VPS IP (same as `supabase.subtrakr.me`).
-2. Issue the cert (webroot method, same as the backend's):
-   `certbot certonly --webroot -w /var/www/certbot -d subtrakr.me -d www.subtrakr.me -d app.subtrakr.me`
+1. DNS: `subtrakr.me` and `www.subtrakr.me` already point at the VPS
+   (verified 2026-07-20) — nothing to do unless records change.
+2. Prepare runner-writable paths (first deploy only):
+   `mkdir -p /var/www/subtrakr-web && chown -R runner:runner /var/www/subtrakr-web`
+   and make sure `/var/www/nginx-proxy/conf.d/` is writable by `runner`.
+3. Issue the cert (webroot method, same as the backend's):
+   `certbot certonly --webroot -w /var/www/certbot -d subtrakr.me -d www.subtrakr.me`
    — nginx must first be serving `/.well-known/acme-challenge/` for those
    names on port 80; a re-run of the deploy workflow installs the full config
    once `/etc/letsencrypt/live/subtrakr.me/` exists.
 
-`www.` and `app.` 301 to the canonical `https://subtrakr.me` (the consumer
-app lives at `/app`, the admin at `/admin`).
+`www.` 301s to the canonical `https://subtrakr.me` (the consumer app lives
+at `/app`, the admin at `/admin`).
