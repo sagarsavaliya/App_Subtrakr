@@ -1,0 +1,70 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy-backend.yml'
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    # Runs directly on the VPS via the dedicated self-hosted runner — no SSH
+    # secrets needed, the runner already lives on the target machine.
+    runs-on: [self-hosted, subtrakr]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sync backend files onto the VPS
+        run: |
+          set -e
+          DEST=/var/www/subtrakr-supabase
+          cp backend/docker-compose.yml "$DEST/docker-compose.yml"
+          cp backend/kong.yml.template "$DEST/kong.yml.template"
+          cp backend/schema.sql "$DEST/schema.sql"
+          cp backend/schema_billing.sql "$DEST/schema_billing.sql"
+          echo "Backend files synced to $DEST"
+
+      - name: Render kong.yml from the VPS's own .env (secrets never leave the VPS)
+        run: |
+          set -e
+          cd /var/www/subtrakr-supabase
+          set -a
+          source ./.env
+          set +a
+          envsubst '${ANON_KEY} ${SERVICE_ROLE_KEY}' < kong.yml.template > kong.yml
+
+      - name: Apply database schema
+        run: |
+          set -e
+          cd /var/www/subtrakr-supabase
+          set -a
+          source ./.env
+          set +a
+          docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" subtrakr_db \
+            psql -U supabase_admin -d postgres < schema.sql
+          docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" subtrakr_db \
+            psql -U supabase_admin -d postgres < schema_billing.sql
+
+      - name: Pull images and restart the stack
+        run: |
+          set -e
+          cd /var/www/subtrakr-supabase
+          docker compose pull
+          docker compose up -d
+          docker compose ps
+
+      - name: Sync nginx config and reload
+        run: |
+          set -e
+          cp backend/nginx/supabase.subtrakr.me.conf /var/www/nginx-proxy/conf.d/subtrakr-supabase.conf
+          docker exec nginx-proxy nginx -t
+          docker exec nginx-proxy nginx -s reload
+
+      - name: Smoke test
+        run: |
+          sleep 5
+          curl -sf https://supabase.subtrakr.me/auth/v1/health \
+            -H "apikey: $(grep ^ANON_KEY /var/www/subtrakr-supabase/.env | cut -d= -f2)" \
+            | grep -q GoTrue
