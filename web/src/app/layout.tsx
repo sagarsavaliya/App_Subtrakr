@@ -14,9 +14,31 @@ const dmMono = DM_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://subtrakr.me"),
   title: "SubTrakr — All your subscriptions. Tracked. Sorted.",
   description:
-    "Track personal and business subscriptions, get renewal reminders, and export GST-ready reports. Built for India.",
+    "Track personal and business subscriptions, get renewal reminders before every charge, and export GST-ready reports. Built for India — UPI-friendly pricing in ₹.",
+  keywords: [
+    "subscription tracker",
+    "subscription manager India",
+    "GST subscription report",
+    "renewal reminder app",
+    "business subscription tracking",
+  ],
+  openGraph: {
+    type: "website",
+    url: "https://subtrakr.me",
+    siteName: "SubTrakr",
+    title: "SubTrakr — All your subscriptions. Tracked. Sorted.",
+    description:
+      "One place for every recurring payment — personal and business — with renewal reminders and GST-ready exports.",
+  },
+  twitter: {
+    card: "summary",
+    title: "SubTrakr — All your subscriptions. Tracked. Sorted.",
+    description:
+      "Track every recurring payment, get reminded before each charge, export GST-ready reports.",
+  },
 };
 
 export default function RootLayout({
