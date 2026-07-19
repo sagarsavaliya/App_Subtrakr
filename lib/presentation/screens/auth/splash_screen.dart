@@ -1,26 +1,59 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../services/auth_service.dart';
+import '../../../services/sync_service.dart';
+import '../../providers/entity_provider.dart';
+import '../../providers/payment_history_provider.dart';
+import '../../providers/subscription_provider.dart';
 import '../../widgets/common/aurora_background.dart';
 
-/// PRD S1-1 — auto-navigates within ~1.2s. There's no auth backend wired
-/// yet ([[subtrakr-build-status]]), so this always continues to the
-/// dashboard rather than branching on session state.
-class SplashScreen extends StatefulWidget {
+/// PRD S1-1. Branches on auth state: unconfigured backend → straight to the
+/// dashboard in offline demo mode; configured + signed in → refresh from
+/// the server, then dashboard; configured + signed out → login.
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends ConsumerState<SplashScreen> {
+  static const _minSplash = Duration(milliseconds: 1200);
+
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(milliseconds: 1200), () {
-      if (mounted) context.go('/dashboard');
-    });
+    _boot();
+  }
+
+  Future<void> _boot() async {
+    final started = DateTime.now();
+
+    var pulled = false;
+    if (AuthService.hasSession) {
+      // Capped so a dead network can't hold the splash hostage — local Hive
+      // data is already there and stays authoritative until a pull succeeds.
+      pulled = await SyncService.pullAll()
+          .timeout(const Duration(seconds: 6), onTimeout: () => false);
+    }
+
+    final elapsed = DateTime.now().difference(started);
+    if (elapsed < _minSplash) {
+      await Future.delayed(_minSplash - elapsed);
+    }
+    if (!mounted) return;
+
+    if (pulled) {
+      ref.invalidate(entitiesProvider);
+      ref.invalidate(subscriptionsProvider);
+      ref.invalidate(paymentHistoryProvider);
+    }
+
+    final needsLogin = AuthService.isConfigured && !AuthService.hasSession;
+    context.go(needsLogin ? '/login' : '/dashboard');
   }
 
   @override

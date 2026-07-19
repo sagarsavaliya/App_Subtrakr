@@ -6,6 +6,7 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../../core/utils/currency_utils.dart';
 import '../../../core/utils/date_utils.dart';
 import '../../../data/mock/mock_data.dart';
+import '../../../data/models/payment_history_model.dart';
 import '../../../data/models/subscription_model.dart';
 import '../../providers/subscription_provider.dart';
 import '../../widgets/common/app_button.dart';
@@ -236,7 +237,11 @@ class _PaymentNudgeSheetState extends ConsumerState<PaymentNudgeSheet>
                     label: 'Yes, mark paid',
                     icon: Icons.check,
                     onPressed: () {
-                      ref.read(subscriptionsProvider.notifier).markPaid(sub.id);
+                      ref.read(subscriptionsProvider.notifier).markPaid(
+                            sub.id,
+                            amountPaid: widget.detectedAmount,
+                            source: PaymentSource.shareDetected,
+                          );
                       Navigator.of(context).pop();
                     },
                   ),

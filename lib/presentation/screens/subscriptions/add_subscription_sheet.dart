@@ -5,6 +5,7 @@ import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/utils/date_utils.dart';
 import '../../../data/models/subscription_model.dart';
+import '../../../services/sync_service.dart';
 import '../../providers/entity_provider.dart';
 import '../../providers/subscription_provider.dart';
 import '../../widgets/common/app_button.dart';
@@ -177,7 +178,8 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
     final entities = ref.read(entitiesProvider);
     final entity = entities.firstWhere((e) => e.id == _entityId);
     final sub = SubscriptionModel(
-      id: 'sub-${DateTime.now().microsecondsSinceEpoch}',
+      // Server columns are UUID-typed — non-UUID ids would never sync.
+      id: SyncService.newId(),
       entityId: entity.id,
       name: _nameController.text.trim(),
       initials:
@@ -204,6 +206,9 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
   @override
   Widget build(BuildContext context) {
     final entities = ref.watch(entitiesProvider);
+    // Preselect the first (Personal) entity — with a single entity there's
+    // nothing to choose, and submit should not sit disabled for it.
+    _entityId ??= entities.isNotEmpty ? entities.first.id : null;
     final viewInsets = MediaQuery.of(context).viewInsets;
 
     return AnimatedPadding(

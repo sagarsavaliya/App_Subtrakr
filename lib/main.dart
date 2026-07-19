@@ -21,7 +21,7 @@ Future<void> main() async {
   }
   await SupabaseService.init();
 
-  await bootstrapLocalData();
+  await bootstrapLocalData(seedDemo: !SupabaseService.isReady);
 
   // Never let notification setup block app boot: on web in particular, the
   // permission prompt can hang indefinitely without a user gesture (and

@@ -5,6 +5,7 @@ import '../../data/models/payment_history_model.dart';
 import '../../data/models/subscription_model.dart';
 import '../../data/repositories/subscription_repository.dart';
 import '../../services/notification_service.dart';
+import '../../services/sync_service.dart';
 import 'entity_provider.dart';
 import 'payment_history_provider.dart';
 
@@ -19,7 +20,11 @@ class SubscriptionsNotifier extends Notifier<List<SubscriptionModel>> {
   /// Marks [id] paid, advances its next due date, and records a payment
   /// history entry. Returns the pre-mutation subscription + the new payment's
   /// id so the caller can offer a 5-second Undo.
-  ({SubscriptionModel previous, String paymentId})? markPaid(String id) {
+  ({SubscriptionModel previous, String paymentId})? markPaid(
+    String id, {
+    double? amountPaid,
+    PaymentSource source = PaymentSource.manual,
+  }) {
     final previous = state.firstWhereOrNull((s) => s.id == id);
     if (previous == null) return null;
 
@@ -34,6 +39,7 @@ class SubscriptionsNotifier extends Notifier<List<SubscriptionModel>> {
     state = [for (final sub in state) if (sub.id == id) updated else sub];
     _repo.save(updated);
     NotificationService.scheduleReminder(updated);
+    SyncService.upsertSubscription(updated);
 
     final paymentId = _uuid.v4();
     ref
@@ -43,9 +49,9 @@ class SubscriptionsNotifier extends Notifier<List<SubscriptionModel>> {
             id: paymentId,
             subscriptionId: id,
             paidDate: DateTime.now(),
-            amountPaid: previous.amount,
+            amountPaid: amountPaid ?? previous.amount,
             currency: previous.currency,
-            source: PaymentSource.manual,
+            source: source,
           ),
         );
 
@@ -58,6 +64,7 @@ class SubscriptionsNotifier extends Notifier<List<SubscriptionModel>> {
     state = [for (final sub in state) if (sub.id == previous.id) previous else sub];
     _repo.save(previous);
     NotificationService.scheduleReminder(previous);
+    SyncService.upsertSubscription(previous);
     ref.read(paymentHistoryProvider.notifier).removeById(paymentId);
   }
 
@@ -71,6 +78,7 @@ class SubscriptionsNotifier extends Notifier<List<SubscriptionModel>> {
       _repo.save(updated);
       // scheduleReminder itself cancels+no-ops for non-active statuses.
       NotificationService.scheduleReminder(updated);
+      SyncService.upsertSubscription(updated);
     }
   }
 
@@ -78,12 +86,16 @@ class SubscriptionsNotifier extends Notifier<List<SubscriptionModel>> {
     state = state.where((s) => s.id != id).toList();
     _repo.delete(id);
     NotificationService.cancelReminder(id);
+    // Its payment history goes with it, locally and on the server.
+    ref.read(paymentHistoryProvider.notifier).removeForSubscription(id);
+    SyncService.deleteSubscription(id);
   }
 
   void addSubscription(SubscriptionModel sub) {
     state = [...state, sub];
     _repo.save(sub);
     NotificationService.scheduleReminder(sub);
+    SyncService.upsertSubscription(sub);
   }
 }
 

@@ -11,6 +11,7 @@ class LocalDataSource {
   static const subscriptionsBox = 'subscriptions';
   static const paymentHistoryBox = 'payment_history';
   static const invoicesBox = 'invoices';
+  static const prefsBox = 'prefs';
 
   static bool _initialized = false;
 
@@ -28,6 +29,7 @@ class LocalDataSource {
     await Hive.openBox<Map>(subscriptionsBox);
     await Hive.openBox<Map>(paymentHistoryBox);
     await Hive.openBox<Map>(invoicesBox);
+    await Hive.openBox<Map>(prefsBox);
     _initialized = true;
   }
 
@@ -35,4 +37,5 @@ class LocalDataSource {
   static Box<Map> get subscriptions => Hive.box<Map>(subscriptionsBox);
   static Box<Map> get paymentHistory => Hive.box<Map>(paymentHistoryBox);
   static Box<Map> get invoices => Hive.box<Map>(invoicesBox);
+  static Box<Map> get prefs => Hive.box<Map>(prefsBox);
 }

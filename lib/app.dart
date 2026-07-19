@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'presentation/providers/subscription_provider.dart';
+import 'presentation/screens/nudge/payment_nudge_sheet.dart';
 import 'services/notification_action_bridge.dart';
 import 'services/notification_service.dart';
+import 'services/payment_capture_service.dart';
 
 class SubtrakrApp extends ConsumerStatefulWidget {
   const SubtrakrApp({super.key});
@@ -26,14 +28,25 @@ class _SubtrakrAppState extends ConsumerState<SubtrakrApp> {
     NotificationActionBridge.onOpenSubscription = (subscriptionId) {
       appRouter.push('/subscription/$subscriptionId');
     };
+    PaymentCaptureService.onPaymentDetected = (matched, detectedAmount) {
+      final ctx = rootNavigatorKey.currentContext;
+      if (ctx == null) return;
+      showPaymentNudgeSheet(
+        ctx,
+        matched: matched,
+        detectedAmount: detectedAmount,
+      );
+    };
 
-    // Cold-start case: app was fully killed and the user tapped a reminder
-    // notification to launch it. Delayed past SplashScreen's own 1200ms
+    // Cold-start cases: app was fully killed and launched by a notification
+    // tap or an incoming share. Delayed past SplashScreen's own 1200ms
     // auto-redirect to /dashboard — that redirect uses go(), which replaces
-    // the whole route stack, so pushing the subscription detail before it
-    // fires would just get wiped out immediately.
+    // the whole route stack, so pushing/presenting before it fires would
+    // just get wiped out immediately.
     Future.delayed(const Duration(milliseconds: 1500), () {
-      if (mounted) NotificationService.checkLaunchDetails();
+      if (!mounted) return;
+      NotificationService.checkLaunchDetails();
+      PaymentCaptureService.init();
     });
   }
 

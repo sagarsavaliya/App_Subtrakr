@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/payment_history_model.dart';
 import '../../data/repositories/payment_history_repository.dart';
+import '../../services/sync_service.dart';
 
 class PaymentHistoryNotifier extends Notifier<List<PaymentHistoryModel>> {
   final _repo = PaymentHistoryRepository();
@@ -11,11 +12,23 @@ class PaymentHistoryNotifier extends Notifier<List<PaymentHistoryModel>> {
   void add(PaymentHistoryModel payment) {
     state = [...state, payment];
     _repo.save(payment);
+    SyncService.insertPayment(payment);
   }
 
   void removeById(String id) {
     state = state.where((p) => p.id != id).toList();
     _repo.delete(id);
+    SyncService.deletePayment(id);
+  }
+
+  /// Local-only removal of a deleted subscription's history — the server
+  /// side is handled in one shot by [SyncService.deleteSubscription].
+  void removeForSubscription(String subscriptionId) {
+    final orphaned = state.where((p) => p.subscriptionId == subscriptionId);
+    for (final p in orphaned) {
+      _repo.delete(p.id);
+    }
+    state = state.where((p) => p.subscriptionId != subscriptionId).toList();
   }
 }
 

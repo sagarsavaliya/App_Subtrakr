@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import '../../data/models/entity_model.dart';
 import '../../data/repositories/entity_repository.dart';
+import '../../services/sync_service.dart';
 
 class EntitiesNotifier extends Notifier<List<EntityModel>> {
   final _repo = EntityRepository();
@@ -20,6 +21,13 @@ class EntitiesNotifier extends Notifier<List<EntityModel>> {
   void add(EntityModel entity) {
     state = [...state, entity];
     _repo.save(entity);
+    SyncService.upsertEntity(entity);
+  }
+
+  void update(EntityModel entity) {
+    state = [for (final e in state) if (e.id == entity.id) entity else e];
+    _repo.save(entity);
+    SyncService.upsertEntity(entity);
   }
 }
 

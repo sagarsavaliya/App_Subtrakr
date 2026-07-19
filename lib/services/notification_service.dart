@@ -5,6 +5,7 @@ import 'package:timezone/timezone.dart' as tz;
 import '../core/utils/currency_utils.dart';
 import '../core/utils/date_utils.dart';
 import '../data/models/subscription_model.dart';
+import '../data/repositories/prefs_repository.dart';
 import 'notification_action_bridge.dart';
 
 const _markPaidActionId = 'mark_paid';
@@ -100,6 +101,7 @@ class NotificationService {
     try {
       await cancelReminder(sub.id);
       if (sub.status != SubscriptionStatus.active) return;
+      if (!PrefsRepository().remindersEnabled) return;
 
       final reminderDate = sub.nextDueDate.subtract(Duration(days: sub.remindDaysBefore));
       final now = DateTime.now();
@@ -144,6 +146,14 @@ class NotificationService {
   static Future<void> scheduleAll(List<SubscriptionModel> subscriptions) async {
     for (final sub in subscriptions) {
       await scheduleReminder(sub);
+    }
+  }
+
+  static Future<void> cancelAll() async {
+    try {
+      await _plugin.cancelAll();
+    } catch (e) {
+      debugPrint('NotificationService.cancelAll failed (non-fatal): $e');
     }
   }
 }

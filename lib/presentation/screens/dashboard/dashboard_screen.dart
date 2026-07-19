@@ -6,6 +6,7 @@ import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/utils/date_utils.dart';
 import '../../../data/models/entity_model.dart';
+import '../../../services/auth_service.dart';
 import '../../providers/entity_provider.dart';
 import '../../providers/subscription_provider.dart';
 import '../../widgets/common/app_button.dart';
@@ -54,7 +55,7 @@ class DashboardScreen extends ConsumerWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        '${AppDateUtils.timeOfDayGreeting(now)}, Sagar',
+                        '${AppDateUtils.timeOfDayGreeting(now)}, ${AuthService.hasSession ? AuthService.displayName : 'there'}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: AppTextStyles.heading1.copyWith(fontSize: 19),
