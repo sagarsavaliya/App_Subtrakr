@@ -42,10 +42,16 @@ jobs:
           set -a
           source ./.env
           set +a
+          # -i is load-bearing: without it docker exec ignores the stdin
+          # redirect and psql "succeeds" having executed nothing.
+          docker exec -i -e PGPASSWORD="$POSTGRES_PASSWORD" subtrakr_db \
+            psql -U supabase_admin -d postgres -v ON_ERROR_STOP=0 < schema.sql
+          docker exec -i -e PGPASSWORD="$POSTGRES_PASSWORD" subtrakr_db \
+            psql -U supabase_admin -d postgres -v ON_ERROR_STOP=0 < schema_billing.sql
+          # PostgREST caches the schema — new tables 404 (PGRST205) until
+          # it reloads. It LISTENs on the pgrst channel for exactly this.
           docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" subtrakr_db \
-            psql -U supabase_admin -d postgres < schema.sql
-          docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" subtrakr_db \
-            psql -U supabase_admin -d postgres < schema_billing.sql
+            psql -U supabase_admin -d postgres -c "NOTIFY pgrst, 'reload schema';"
 
       - name: Pull images and restart the stack
         run: |

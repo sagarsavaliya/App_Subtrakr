@@ -115,6 +115,9 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 -- access to plans/billing/settings/admin_users is service_role-only by
 -- omission (no INSERT/UPDATE/DELETE policy exists for `authenticated`).
 GRANT SELECT ON plans, subscriber_billing, billing_transactions TO authenticated;
+-- The public landing page reads plans with the bare anon key (no session).
+GRANT USAGE ON SCHEMA public TO anon;
+GRANT SELECT ON plans TO anon;
 
 -- Seed the default plans if they don't already exist.
 INSERT INTO plans (code, name, description, price_monthly, price_yearly, max_entities, max_subscriptions, sort_order)
@@ -123,3 +126,10 @@ VALUES
   ('pro', 'Pro', 'Unlimited subscriptions, business entities, GST export, invoice vault.', 149, 1490, NULL, NULL, 1),
   ('team', 'Team', 'Everything in Pro, for your whole finance team.', 499, 4990, NULL, NULL, 2)
 ON CONFLICT (code) DO NOTHING;
+
+-- Bootstrap the owner as super admin. No-ops until that email has actually
+-- signed up (auth.users row exists); promotes automatically on the next
+-- deploy after signup. Idempotent via the user_id UNIQUE constraint.
+INSERT INTO admin_users (user_id, role)
+SELECT id, 'super_admin' FROM auth.users WHERE email = 'savaliya.sagar07@gmail.com'
+ON CONFLICT (user_id) DO NOTHING;
