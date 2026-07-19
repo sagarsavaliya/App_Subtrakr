@@ -19,6 +19,11 @@ jobs:
           channel: stable
           cache: true
 
+      # .env is gitignored (real Supabase credentials) but declared as a
+      # pubspec asset — the file must exist on disk (content doesn't matter
+      # for analyze/test) or `flutter analyze` fails with asset_does_not_exist.
+      - run: cp .env.example .env
+
       - run: flutter pub get
 
       - run: flutter analyze
