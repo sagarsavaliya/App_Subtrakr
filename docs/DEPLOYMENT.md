@@ -99,3 +99,14 @@ nginx directly while still verifying the real TLS certificate.
 
 `www.` 301s to the canonical `https://subtrakr.me` (the consumer app lives
 at `/app`, the admin at `/admin`).
+
+### Cert renewal
+
+certbot's own timer renews certs automatically, but nginx (in the
+`nginx-proxy` container) won't pick a renewed cert up until reloaded. One-time
+fix that covers every domain on the box (root):
+
+```
+printf '#!/bin/sh\ndocker exec nginx-proxy nginx -s reload\n' > /etc/letsencrypt/renewal-hooks/deploy/reload-nginx-proxy.sh
+chmod +x /etc/letsencrypt/renewal-hooks/deploy/reload-nginx-proxy.sh
+```
