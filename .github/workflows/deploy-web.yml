@@ -1,0 +1,111 @@
+name: Deploy Web
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web/**'
+      - '.github/workflows/deploy-web.yml'
+  workflow_dispatch: {}
+
+jobs:
+  # ALL compilation happens here on GitHub's own runners. The VPS is a
+  # shared box hosting ~15 other projects — it only ever pulls the
+  # finished image (see docs/DEPLOYMENT.md).
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: web
+          push: true
+          tags: |
+            ghcr.io/sagarsavaliya/subtrakr-web:latest
+            ghcr.io/sagarsavaliya/subtrakr-web:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/sagarsavaliya/App_Subtrakr
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NEXT_PUBLIC_SUPABASE_URL=https://supabase.subtrakr.me
+            NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzg0NDQ1NTMxLCJleHAiOjIwOTk4MDU1MzF9.owyn76lu7ENXrlxH_IEPuG6G6a7Bxg3BNKVWNDPxB8o
+
+  deploy:
+    needs: build
+    runs-on: [self-hosted, subtrakr]
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate docker with GHCR (package is private)
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Bootstrap /var/www/subtrakr-web (first run only)
+        run: |
+          set -e
+          DEST=/var/www/subtrakr-web
+          mkdir -p "$DEST"
+          if [ ! -f "$DEST/.env" ]; then
+            # Server-only secrets, generated/sourced ON the VPS — they never
+            # exist in git or GitHub. Service key comes from the Supabase
+            # stack's own .env; the settings-encryption key is minted here.
+            SERVICE_KEY=$(grep ^SERVICE_ROLE_KEY /var/www/subtrakr-supabase/.env | cut -d= -f2)
+            ANON_KEY=$(grep ^ANON_KEY /var/www/subtrakr-supabase/.env | cut -d= -f2)
+            {
+              echo "NEXT_PUBLIC_SUPABASE_URL=https://supabase.subtrakr.me"
+              echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$ANON_KEY"
+              echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_KEY"
+              echo "SETTINGS_ENCRYPTION_KEY=$(openssl rand -hex 32)"
+            } > "$DEST/.env"
+            chmod 600 "$DEST/.env"
+            echo "Created $DEST/.env"
+          fi
+
+      - name: Sync compose file
+        run: cp web/docker-compose.web.yml /var/www/subtrakr-web/docker-compose.yml
+
+      - name: Pull the freshly built image and restart
+        run: |
+          set -e
+          cd /var/www/subtrakr-web
+          docker compose pull
+          docker compose up -d
+          docker compose ps
+
+      - name: Sync nginx config and reload (only once cert exists)
+        run: |
+          set -e
+          if [ -d /etc/letsencrypt/live/subtrakr.me ]; then
+            cp backend/nginx/subtrakr.me.conf /var/www/nginx-proxy/conf.d/subtrakr-web.conf
+            docker exec nginx-proxy nginx -t
+            docker exec nginx-proxy nginx -s reload
+          else
+            echo "::warning::No cert for subtrakr.me yet — nginx config NOT installed."
+            echo "Run certbot on the VPS first (see docs/DEPLOYMENT.md), then re-run this workflow."
+          fi
+
+      - name: Smoke test
+        run: |
+          set -e
+          sleep 5
+          # Hits the container directly on the docker network — works even
+          # before DNS/cert exist.
+          docker run --rm --network subtrakr_net curlimages/curl:8.10.1 \
+            -sf -o /dev/null -w '%{http_code}\n' http://subtrakr_web:3000/ | grep -q 200
+          echo "Web container serving OK"

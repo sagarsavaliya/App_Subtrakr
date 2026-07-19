@@ -1,0 +1,86 @@
+@import "tailwindcss";
+
+@theme {
+  /* SubTrakr dark-glass tokens — mirrors lib/core/constants/app_colors.dart */
+  --color-void: #060b0a;
+  --color-base: #0a1614;
+  --color-elevated: #0f1e1b;
+  --color-elevated2: #122522;
+  --color-accent-a: #2ec4a0;
+  --color-accent-b: #17859e;
+  --color-glow: #5eeac5;
+  --color-personal: #a78bfa;
+  --color-due: #fbbf24;
+  --color-overdue: #f87171;
+  --color-trial: #c4b5fd;
+  --color-ink: #eef5f2;
+  --color-ink-2: #93a8a1;
+  --color-ink-3: #5b6e68;
+
+  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-dm-mono), ui-monospace, monospace;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: linear-gradient(160deg, #060b0a 0%, #0a1614 55%, #060b0a 100%);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  min-height: 100vh;
+}
+
+/* Aurora glow blobs — the web equivalent of the app's AuroraBackground */
+.aurora {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+.aurora::before,
+.aurora::after {
+  content: "";
+  position: absolute;
+  width: 60vw;
+  height: 60vw;
+  border-radius: 50%;
+  filter: blur(120px);
+  opacity: 0.16;
+}
+.aurora::before {
+  background: #2ec4a0;
+  top: -20vw;
+  left: -15vw;
+}
+.aurora::after {
+  background: #17859e;
+  bottom: -25vw;
+  right: -15vw;
+}
+
+.glass {
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  backdrop-filter: blur(14px);
+}
+.glass-strong {
+  background: rgba(255, 255, 255, 0.095);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(18px);
+}
+
+.brand-gradient {
+  background: linear-gradient(90deg, #2ec4a0, #17859e);
+}
+.brand-text {
+  background: linear-gradient(90deg, #2ec4a0, #5eeac5);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.glow-shadow {
+  box-shadow: 0 8px 32px rgba(46, 196, 160, 0.35);
+}

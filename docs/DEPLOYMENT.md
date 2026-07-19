@@ -55,8 +55,44 @@ confusion, role passwords needing a manual fix, etc.) — the short version:
    HTTPS config once the cert exists.
 4. Run `schema.sql` against the database.
 
-## Web build deploy
+## Web app deploy (Next.js — landing + consumer app + super admin)
 
-`.github/workflows/deploy-web.yml` builds `flutter build web --release` on
-the same self-hosted runner and serves it at `app.subtrakr.me`, following the
-same nginx-proxy + certbot pattern as the backend.
+`.github/workflows/deploy-web.yml`, two jobs honoring the "never build on the
+VPS" rule:
+
+1. **build** (`ubuntu-latest`): builds `web/` into a Docker image
+   (`web/Dockerfile`, Next.js standalone output) and pushes
+   `ghcr.io/sagarsavaliya/subtrakr-web:latest` + a per-commit SHA tag.
+   `NEXT_PUBLIC_*` build args are public-by-design values (same anon key the
+   mobile app ships with).
+2. **deploy** (self-hosted `subtrakr` runner): `docker login ghcr.io` with the
+   workflow's own `GITHUB_TOKEN` (packages: read), sync
+   `web/docker-compose.web.yml` → `/var/www/subtrakr-web/docker-compose.yml`,
+   `docker compose pull && up -d`, install
+   `backend/nginx/subtrakr.me.conf` → nginx-proxy and reload (skipped with a
+   warning until the TLS cert exists), then smoke-test the container over the
+   Docker network.
+
+On first deploy the job bootstraps `/var/www/subtrakr-web/.env` (mode 600):
+`NEXT_PUBLIC_*` + `SUPABASE_SERVICE_ROLE_KEY` copied from the Supabase
+stack's own VPS `.env`, plus a freshly minted `SETTINGS_ENCRYPTION_KEY`
+(`openssl rand -hex 32`) used for AES-256-GCM encryption of secrets in the
+`app_settings` table. None of these ever exist in git or GitHub.
+
+The container runs as `subtrakr_web` on `subtrakr_net` with
+`extra_hosts: supabase.subtrakr.me:host-gateway` — the VPS can't reach its
+own public IP (hairpin NAT), so server-side Supabase calls go to the host's
+nginx directly while still verifying the real TLS certificate.
+
+### One-time manual steps (root on the VPS — the runner can't do these)
+
+1. DNS at Hostinger: `A` records for `subtrakr.me`, `www.subtrakr.me`, and
+   `app.subtrakr.me` → the VPS IP (same as `supabase.subtrakr.me`).
+2. Issue the cert (webroot method, same as the backend's):
+   `certbot certonly --webroot -w /var/www/certbot -d subtrakr.me -d www.subtrakr.me -d app.subtrakr.me`
+   — nginx must first be serving `/.well-known/acme-challenge/` for those
+   names on port 80; a re-run of the deploy workflow installs the full config
+   once `/etc/letsencrypt/live/subtrakr.me/` exists.
+
+`www.` and `app.` 301 to the canonical `https://subtrakr.me` (the consumer
+app lives at `/app`, the admin at `/admin`).

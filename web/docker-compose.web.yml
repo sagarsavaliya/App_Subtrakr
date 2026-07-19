@@ -1,0 +1,21 @@
+# Synced to /var/www/subtrakr-web/docker-compose.yml on the VPS by the
+# deploy-web workflow. The .env beside it (VPS-only, never in git) supplies
+# the runtime secrets.
+services:
+  web:
+    image: ghcr.io/sagarsavaliya/subtrakr-web:latest
+    container_name: subtrakr_web
+    restart: unless-stopped
+    env_file: .env
+    networks:
+      - subtrakr_net
+    # The VPS cannot reach its own public IP (hairpin NAT — see the
+    # subtrakr-supabase-infra notes), so server-side calls to
+    # supabase.subtrakr.me are pointed at the host's nginx directly. TLS
+    # still verifies: nginx serves the real certificate for that name.
+    extra_hosts:
+      - "supabase.subtrakr.me:host-gateway"
+
+networks:
+  subtrakr_net:
+    external: true
