@@ -25,6 +25,7 @@ import '../../widgets/common/glass_surface.dart';
 import '../../widgets/common/mark_paid_feedback.dart';
 import '../../widgets/common/service_logo.dart';
 import '../../widgets/common/status_pill.dart';
+import 'add_subscription_sheet.dart';
 
 const _uuid = Uuid();
 
@@ -173,6 +174,15 @@ class SubscriptionDetailScreen extends ConsumerWidget {
               const SizedBox(height: 10),
               Row(
                 children: [
+                  Expanded(
+                    child: GlassButton(
+                      label: 'Edit',
+                      icon: Icons.edit_outlined,
+                      onPressed: () =>
+                          showAddSubscriptionSheet(context, existing: sub),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: GlassButton(
                       label: sub.status == SubscriptionStatus.paused ? 'Resume' : 'Pause',

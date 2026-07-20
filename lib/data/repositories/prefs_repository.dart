@@ -7,10 +7,12 @@ class PrefsRepository {
 
   bool get remindersEnabled => _raw['remindersEnabled'] as bool? ?? true;
   bool get captureEnabled => _raw['captureEnabled'] as bool? ?? true;
+  bool get onboardingSeen => _raw['onboardingSeen'] as bool? ?? false;
 
   Future<void> setRemindersEnabled(bool value) =>
       _put('remindersEnabled', value);
   Future<void> setCaptureEnabled(bool value) => _put('captureEnabled', value);
+  Future<void> setOnboardingSeen() => _put('onboardingSeen', true);
 
   Future<void> _put(String field, bool value) {
     final updated = Map<String, dynamic>.from(_raw)..[field] = value;

@@ -4,11 +4,24 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../services/notification_service.dart';
+import '../../../services/sync_service.dart';
+import '../../providers/entity_provider.dart';
+import '../../providers/payment_history_provider.dart';
 import '../../providers/subscription_provider.dart';
 import '../../widgets/dashboard/subscription_tile.dart';
 
 class SubscriptionsListScreen extends ConsumerWidget {
   const SubscriptionsListScreen({super.key});
+
+  Future<void> _refresh(WidgetRef ref) async {
+    final pulled = await SyncService.pullAll();
+    if (!pulled) return;
+    ref.invalidate(entitiesProvider);
+    ref.invalidate(subscriptionsProvider);
+    ref.invalidate(paymentHistoryProvider);
+    await NotificationService.scheduleAll(ref.read(subscriptionsProvider));
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -17,45 +30,50 @@ class SubscriptionsListScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.screenPadding,
-            AppSpacing.lg,
-            AppSpacing.screenPadding,
-            120,
-          ),
-          children: [
-            Text(
-              'All subscriptions',
-              style: AppTextStyles.heading1.copyWith(fontSize: 20),
+        child: RefreshIndicator(
+          color: AppColors.accentGlow,
+          backgroundColor: AppColors.bgElevated,
+          onRefresh: () => _refresh(ref),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.screenPadding,
+              AppSpacing.lg,
+              AppSpacing.screenPadding,
+              120,
             ),
-            const SizedBox(height: 4),
-            Text(
-              '${subscriptions.length} tracked · swipe left to mark paid',
-              style: AppTextStyles.hint,
-            ),
-            const SizedBox(height: AppSpacing.sectionGap),
-            if (subscriptions.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 48),
-                child: Center(
-                  child: Text(
-                    'Nothing here yet',
-                    style: AppTextStyles.body.copyWith(
-                      color: AppColors.textSecondary,
+            children: [
+              Text(
+                'All subscriptions',
+                style: AppTextStyles.heading1.copyWith(fontSize: 20),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${subscriptions.length} tracked · swipe left to mark paid',
+                style: AppTextStyles.hint,
+              ),
+              const SizedBox(height: AppSpacing.sectionGap),
+              if (subscriptions.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 48),
+                  child: Center(
+                    child: Text(
+                      'Nothing here yet',
+                      style: AppTextStyles.body.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   ),
-                ),
-              )
-            else
-              for (final sub in subscriptions) ...[
-                SubscriptionTile(
-                  subscription: sub,
-                  onTap: () => context.push('/subscription/${sub.id}'),
-                ),
-                const SizedBox(height: AppSpacing.listItemGap),
-              ],
-          ],
+                )
+              else
+                for (final sub in subscriptions) ...[
+                  SubscriptionTile(
+                    subscription: sub,
+                    onTap: () => context.push('/subscription/${sub.id}'),
+                  ),
+                  const SizedBox(height: AppSpacing.listItemGap),
+                ],
+            ],
+          ),
         ),
       ),
     );

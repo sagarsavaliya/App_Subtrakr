@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../presentation/screens/auth/login_screen.dart';
+import '../../presentation/screens/auth/onboarding_screen.dart';
 import '../../presentation/screens/auth/splash_screen.dart';
 import '../../presentation/screens/dashboard/dashboard_screen.dart';
 import '../../presentation/screens/entities/settings_screen.dart';
@@ -19,6 +20,10 @@ final appRouter = GoRouter(
   routes: [
     GoRoute(path: '/splash', builder: (context, state) => const SplashScreen()),
     GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
+    GoRoute(
+      path: '/onboarding',
+      builder: (context, state) => const OnboardingScreen(),
+    ),
     GoRoute(
       path: '/subscription/:id',
       builder: (context, state) =>

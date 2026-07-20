@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/constants/service_catalogue.dart';
 import '../../../core/utils/date_utils.dart';
 import '../../../data/models/subscription_model.dart';
 import '../../../services/sync_service.dart';
@@ -13,91 +14,24 @@ import '../../widgets/common/app_chip.dart';
 import '../../widgets/common/glass_surface.dart';
 import '../../widgets/common/service_logo.dart';
 
-class _CatalogueEntry {
-  const _CatalogueEntry(
-    this.name,
-    this.initials,
-    this.category,
-    this.amount,
-    this.color,
-  );
-  final String name;
-  final String initials;
-  final SubscriptionCategory category;
-  final double amount;
-  final Color color;
-}
-
-const _catalogue = [
-  _CatalogueEntry(
-    'Claude Pro',
-    'C',
-    SubscriptionCategory.devTools,
-    1650,
-    AppColors.serviceClaude,
-  ),
-  _CatalogueEntry(
-    'Cursor Pro',
-    'CU',
-    SubscriptionCategory.devTools,
-    1650,
-    AppColors.serviceClaude,
-  ),
-  _CatalogueEntry(
-    'GitHub Copilot',
-    'GH',
-    SubscriptionCategory.devTools,
-    825,
-    AppColors.serviceGithub,
-  ),
-  _CatalogueEntry(
-    'Netflix',
-    'N',
-    SubscriptionCategory.entertainment,
-    649,
-    AppColors.serviceNetflix,
-  ),
-  _CatalogueEntry(
-    'Spotify',
-    'S',
-    SubscriptionCategory.entertainment,
-    119,
-    AppColors.serviceSpotify,
-  ),
-  _CatalogueEntry(
-    'AWS',
-    'A',
-    SubscriptionCategory.cloud,
-    0,
-    AppColors.serviceAws,
-  ),
-  _CatalogueEntry(
-    'Google Workspace',
-    'G',
-    SubscriptionCategory.cloud,
-    840,
-    AppColors.serviceGoogle,
-  ),
-  _CatalogueEntry(
-    'Jio Postpaid',
-    'J',
-    SubscriptionCategory.telecom,
-    399,
-    AppColors.serviceJio,
-  ),
-];
-
-Future<void> showAddSubscriptionSheet(BuildContext context) {
+/// Pass [existing] to edit instead of add (PRD S3-8) — the form opens
+/// pre-filled and submit updates in place.
+Future<void> showAddSubscriptionSheet(
+  BuildContext context, {
+  SubscriptionModel? existing,
+}) {
   return showModalBottomSheet(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => const AddSubscriptionSheet(),
+    builder: (_) => AddSubscriptionSheet(existing: existing),
   );
 }
 
 class AddSubscriptionSheet extends ConsumerStatefulWidget {
-  const AddSubscriptionSheet({super.key});
+  const AddSubscriptionSheet({super.key, this.existing});
+
+  final SubscriptionModel? existing;
 
   @override
   ConsumerState<AddSubscriptionSheet> createState() =>
@@ -107,7 +41,7 @@ class AddSubscriptionSheet extends ConsumerStatefulWidget {
 class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
   final _nameController = TextEditingController();
   final _amountController = TextEditingController();
-  _CatalogueEntry? _selected;
+  ServiceEntry? _selected;
   BillingCycle _cycle = BillingCycle.monthly;
   DateTime _startDate = DateTime.now();
   String? _entityId;
@@ -115,12 +49,33 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
   bool _showAdvanced = false;
   final _notesController = TextEditingController();
 
-  List<_CatalogueEntry> get _suggestions {
+  bool get _isEdit => widget.existing != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final existing = widget.existing;
+    if (existing != null) {
+      _nameController.text = existing.name;
+      _amountController.text = existing.amount % 1 == 0
+          ? existing.amount.toStringAsFixed(0)
+          : existing.amount.toString();
+      _cycle = existing.billingCycle;
+      _startDate = existing.startDate;
+      _entityId = existing.entityId;
+      _autoDebit = existing.isAutoDebit;
+    }
+  }
+
+  List<ServiceEntry> get _suggestions {
+    // Suggestions are an add-flow affordance; when editing, the name is
+    // already settled.
+    if (_isEdit) return const [];
     final q = _nameController.text.trim().toLowerCase();
     if (q.isEmpty) return const [];
-    return _catalogue
+    return serviceCatalogue
         .where((c) => c.name.toLowerCase().contains(q))
-        .take(3)
+        .take(4)
         .toList();
   }
 
@@ -154,12 +109,13 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
     super.dispose();
   }
 
-  void _pickSuggestion(_CatalogueEntry entry) {
+  void _pickSuggestion(ServiceEntry entry) {
     setState(() {
       _selected = entry;
       _nameController.text = entry.name;
-      if (entry.amount > 0) {
-        _amountController.text = entry.amount.toStringAsFixed(0);
+      _cycle = entry.cycle;
+      if (entry.defaultAmount > 0) {
+        _amountController.text = entry.defaultAmount.toStringAsFixed(0);
       }
     });
   }
@@ -177,6 +133,38 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
   void _submit() {
     final entities = ref.read(entitiesProvider);
     final entity = entities.firstWhere((e) => e.id == _entityId);
+    final existing = widget.existing;
+
+    if (existing != null) {
+      // Keep the already-advanced next due date unless the schedule inputs
+      // actually changed — editing the name/amount must not reset progress.
+      final scheduleChanged = _cycle != existing.billingCycle ||
+          !_startDate.isAtSameMomentAs(existing.startDate);
+      final updated = SubscriptionModel(
+        id: existing.id,
+        entityId: entity.id,
+        name: _nameController.text.trim(),
+        initials: existing.initials,
+        category: existing.category,
+        amount: double.parse(_amountController.text),
+        currency: existing.currency,
+        billingCycle: _cycle,
+        customCycleDays: existing.customCycleDays,
+        startDate: _startDate,
+        nextDueDate: scheduleChanged ? _nextDue : existing.nextDueDate,
+        status: existing.status,
+        isAutoDebit: _autoDebit,
+        remindDaysBefore: existing.remindDaysBefore,
+        invoiceCount: existing.invoiceCount,
+      );
+      ref.read(subscriptionsProvider.notifier).updateSubscription(updated);
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${updated.name} updated')),
+      );
+      return;
+    }
+
     final sub = SubscriptionModel(
       // Server columns are UUID-typed — non-UUID ids would never sync.
       id: SyncService.newId(),
@@ -259,7 +247,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          'Add subscription',
+                          _isEdit ? 'Edit subscription' : 'Add subscription',
                           style: AppTextStyles.heading1.copyWith(fontSize: 17),
                         ),
                         IconGlassButton(
@@ -346,7 +334,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
                                                   .copyWith(fontSize: 13.5),
                                             ),
                                             Text(
-                                              '${s.category.label}${s.amount > 0 ? ' · suggested ₹${s.amount.toStringAsFixed(0)}/mo' : ''}',
+                                              '${s.category.label}${s.defaultAmount > 0 ? ' · suggested ₹${s.defaultAmount.toStringAsFixed(0)}/${s.cycle == BillingCycle.yearly ? 'yr' : 'mo'}' : ''}',
                                               style: AppTextStyles.hint,
                                             ),
                                           ],
@@ -549,7 +537,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
                           ),
                         const SizedBox(height: 22),
                         GradientButton(
-                          label: 'Add subscription',
+                          label: _isEdit ? 'Save changes' : 'Add subscription',
                           onPressed: _canSubmit ? _submit : null,
                         ),
                       ],

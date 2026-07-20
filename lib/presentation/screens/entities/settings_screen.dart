@@ -63,7 +63,7 @@ class SettingsScreen extends ConsumerWidget {
     final signedIn = AuthService.hasSession;
 
     final displayName = signedIn ? AuthService.displayName : 'Guest';
-    final subtitle = signedIn ? AuthService.email : 'Offline demo mode';
+    final subtitle = signedIn ? AuthService.identifier : 'Offline demo mode';
 
     return Scaffold(
       backgroundColor: Colors.transparent,

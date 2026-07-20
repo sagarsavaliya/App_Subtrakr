@@ -7,16 +7,31 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../../core/utils/date_utils.dart';
 import '../../../data/models/entity_model.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/notification_service.dart';
+import '../../../services/sync_service.dart';
 import '../../providers/entity_provider.dart';
+import '../../providers/payment_history_provider.dart';
 import '../../providers/subscription_provider.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_chip.dart';
 import '../../widgets/dashboard/due_card.dart';
 import '../../widgets/dashboard/hero_summary_card.dart';
 import '../../widgets/dashboard/subscription_tile.dart';
+import '../entities/entity_edit_sheet.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
+
+  /// PRD S4-10 — re-pulls from the server so a second device's changes
+  /// show up here too. No-ops (resolves immediately) in offline demo mode.
+  Future<void> _refresh(WidgetRef ref) async {
+    final pulled = await SyncService.pullAll();
+    if (!pulled) return;
+    ref.invalidate(entitiesProvider);
+    ref.invalidate(subscriptionsProvider);
+    ref.invalidate(paymentHistoryProvider);
+    await NotificationService.scheduleAll(ref.read(subscriptionsProvider));
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -32,7 +47,11 @@ class DashboardScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
-        child: ListView(
+        child: RefreshIndicator(
+          color: AppColors.accentGlow,
+          backgroundColor: AppColors.bgElevated,
+          onRefresh: () => _refresh(ref),
+          child: ListView(
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.screenPadding,
             AppSpacing.lg,
@@ -111,7 +130,7 @@ class DashboardScreen extends ConsumerWidget {
                   AppChip(
                     label: '+ Add',
                     variant: ChipVariant.ghost,
-                    onTap: () {},
+                    onTap: () => showEntityEditSheet(context),
                   ),
                 ],
               ),
@@ -161,6 +180,7 @@ class DashboardScreen extends ConsumerWidget {
                 ],
               ),
           ],
+          ),
         ),
       ),
     );

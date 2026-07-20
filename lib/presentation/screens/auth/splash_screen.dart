@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../data/repositories/prefs_repository.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/sync_service.dart';
 import '../../providers/entity_provider.dart';
@@ -53,7 +54,14 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     }
 
     final needsLogin = AuthService.isConfigured && !AuthService.hasSession;
-    context.go(needsLogin ? '/login' : '/dashboard');
+    if (!needsLogin) {
+      context.go('/dashboard');
+    } else if (PrefsRepository().onboardingSeen) {
+      context.go('/login');
+    } else {
+      // PRD S1 — first launch goes through onboarding before login.
+      context.go('/onboarding');
+    }
   }
 
   @override

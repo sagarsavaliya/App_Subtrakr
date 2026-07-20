@@ -97,6 +97,15 @@ class SubscriptionsNotifier extends Notifier<List<SubscriptionModel>> {
     NotificationService.scheduleReminder(sub);
     SyncService.upsertSubscription(sub);
   }
+
+  /// Full-record edit (PRD S3-8) — replaces the row, reschedules its
+  /// reminder, and pushes the change to the server.
+  void updateSubscription(SubscriptionModel sub) {
+    state = [for (final s in state) if (s.id == sub.id) sub else s];
+    _repo.save(sub);
+    NotificationService.scheduleReminder(sub);
+    SyncService.upsertSubscription(sub);
+  }
 }
 
 final subscriptionsProvider =
