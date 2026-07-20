@@ -23,7 +23,12 @@ const CYCLES = [
   ["yearly", "Yearly"],
 ];
 
-export default async function NewSubscriptionPage() {
+export default async function NewSubscriptionPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error } = await searchParams;
   const supabase = await createClient();
   const { data: entities } = await supabase
     .from("entities")
@@ -42,6 +47,12 @@ export default async function NewSubscriptionPage() {
           Cancel
         </Link>
       </div>
+
+      {error && (
+        <p className="glass mb-4 rounded-2xl border-overdue/40 p-4 text-sm text-overdue">
+          That didn&apos;t save — check the fields and try again.
+        </p>
+      )}
 
       <form action={addSubscription} className="glass space-y-4 rounded-3xl p-6">
         <div>

@@ -45,6 +45,13 @@ services:
       GOTRUE_MAILER_AUTOCONFIRM: "true"
       GOTRUE_SMTP_ADMIN_EMAIL: admin@subtrakr.me
       GOTRUE_EXTERNAL_GOOGLE_ENABLED: "false"
+      # Mobile number + 6-digit PIN is the primary credential (PRD F1).
+      # SMS_AUTOCONFIRM stays on until a real SMS gateway (MSG91/Twilio —
+      # needs an account + India DLT registration) is wired in; flipping it
+      # off then makes signup require a real OTP via the send-sms hook.
+      GOTRUE_EXTERNAL_PHONE_ENABLED: "true"
+      GOTRUE_SMS_AUTOCONFIRM: "true"
+      GOTRUE_PASSWORD_MIN_LENGTH: "6"
     networks:
       - subtrakr_net
 

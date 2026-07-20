@@ -46,14 +46,21 @@ export function decryptValue(stored: string): string {
 }
 
 export async function getSetting(settingKey: string): Promise<string | null> {
-  const db = createAdminClient();
-  const { data } = await db
-    .from("app_settings")
-    .select("value, is_secret")
-    .eq("key", settingKey)
-    .maybeSingle();
-  if (!data?.value) return null;
-  return data.is_secret ? decryptValue(data.value) : data.value;
+  // Never throws — a misconfigured service key or DB hiccup must degrade to
+  // "setting absent" (features stay off), not a page-crashing 500.
+  try {
+    const db = createAdminClient();
+    const { data } = await db
+      .from("app_settings")
+      .select("value, is_secret")
+      .eq("key", settingKey)
+      .maybeSingle();
+    if (!data?.value) return null;
+    return data.is_secret ? decryptValue(data.value) : data.value;
+  } catch (e) {
+    console.error(`getSetting(${settingKey}) failed:`, e);
+    return null;
+  }
 }
 
 export async function setSetting(
@@ -75,13 +82,18 @@ export async function setSetting(
   if (error) throw error;
 }
 
-/** True when a value exists — never returns the secret itself. */
+/** True when a value exists — never returns the secret itself, never throws. */
 export async function hasSetting(settingKey: string): Promise<boolean> {
-  const db = createAdminClient();
-  const { data } = await db
-    .from("app_settings")
-    .select("id")
-    .eq("key", settingKey)
-    .maybeSingle();
-  return !!data;
+  try {
+    const db = createAdminClient();
+    const { data } = await db
+      .from("app_settings")
+      .select("id")
+      .eq("key", settingKey)
+      .maybeSingle();
+    return !!data;
+  } catch (e) {
+    console.error(`hasSetting(${settingKey}) failed:`, e);
+    return false;
+  }
 }

@@ -14,6 +14,19 @@ export default async function AppLayout({
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  // Accounts created on the web (unlike the mobile app, whose sync layer
+  // does this) start with no entities at all — everything downstream
+  // assumes at least Personal exists, so create it here idempotently.
+  const { data: anyEntity } = await supabase
+    .from("entities")
+    .select("id")
+    .limit(1);
+  if (!anyEntity?.length) {
+    await supabase
+      .from("entities")
+      .insert({ user_id: user.id, name: "Personal", type: "personal" });
+  }
+
   const name =
     (user.user_metadata?.full_name as string) ??
     user.email?.split("@")[0] ??

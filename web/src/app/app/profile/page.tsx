@@ -24,7 +24,10 @@ export default async function ProfilePage() {
         </div>
         <div>
           <p className="text-lg font-semibold">{name}</p>
-          <p className="text-sm text-ink-2">{user?.email}</p>
+          <p className="text-sm text-ink-2">
+            {user?.email ??
+              (user?.phone ? `+${user.phone.replace(/^\+/, "")}` : "")}
+          </p>
           {user?.created_at && (
             <p className="mt-0.5 text-xs text-ink-3">
               Member since {formatDate(user.created_at)}

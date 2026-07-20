@@ -17,13 +17,18 @@ export async function getAdminIdentity(): Promise<AdminIdentity | null> {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const db = createAdminClient();
-  const { data } = await db
-    .from("admin_users")
-    .select("role")
-    .eq("user_id", user.id)
-    .maybeSingle();
-  if (!data) return null;
-
-  return { userId: user.id, email: user.email ?? "", role: data.role };
+  try {
+    const db = createAdminClient();
+    const { data } = await db
+      .from("admin_users")
+      .select("role")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (!data) return null;
+    return { userId: user.id, email: user.email ?? "", role: data.role };
+  } catch (e) {
+    // Fail closed: any lookup problem means "not an admin", never a 500.
+    console.error("getAdminIdentity failed:", e);
+    return null;
+  }
 }

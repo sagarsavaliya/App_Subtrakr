@@ -14,13 +14,21 @@ export async function addSubscription(formData: FormData) {
   const amount = Number(formData.get("amount"));
   const startDate = String(formData.get("start_date"));
   const cycle = String(formData.get("billing_cycle"));
+  const entityId = String(formData.get("entity_id") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+
+  // Bad input renders a message instead of a server-error page.
+  if (!name || !entityId || !Number.isFinite(amount) || amount <= 0 ||
+      Number.isNaN(new Date(startDate).getTime())) {
+    redirect("/app/new?error=1");
+  }
 
   const nextDue = computeNextDue(new Date(startDate), cycle);
 
   const { error } = await supabase.from("subscriptions").insert({
     user_id: user.id,
-    entity_id: String(formData.get("entity_id")),
-    name: String(formData.get("name")).trim(),
+    entity_id: entityId,
+    name,
     category: String(formData.get("category") || "other"),
     amount,
     billing_cycle: cycle,
@@ -29,7 +37,10 @@ export async function addSubscription(formData: FormData) {
     is_auto_debit: formData.get("is_auto_debit") === "on",
     status: "active",
   });
-  if (error) throw new Error(error.message);
+  if (error) {
+    console.error("addSubscription failed:", error.message);
+    redirect("/app/new?error=1");
+  }
 
   revalidatePath("/app");
   redirect("/app");
@@ -42,7 +53,7 @@ export async function deleteSubscription(formData: FormData) {
   await supabase.from("invoices").delete().eq("subscription_id", id);
   await supabase.from("payment_history").delete().eq("subscription_id", id);
   const { error } = await supabase.from("subscriptions").delete().eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) console.error("deleteSubscription failed:", error.message);
   revalidatePath("/app");
 }
 
