@@ -18,6 +18,7 @@ import '../../widgets/dashboard/due_card.dart';
 import '../../widgets/dashboard/hero_summary_card.dart';
 import '../../widgets/dashboard/subscription_tile.dart';
 import '../entities/entity_edit_sheet.dart';
+import 'notifications_sheet.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -85,8 +86,10 @@ class DashboardScreen extends ConsumerWidget {
                 const SizedBox(width: 12),
                 IconGlassButton(
                   icon: Icons.notifications_outlined,
-                  showBadge: true,
-                  onPressed: () {},
+                  // Reflects real state — no longer an always-on badge that
+                  // implies attention is needed when nothing actually is.
+                  showBadge: dueThisWeek.isNotEmpty,
+                  onPressed: () => showNotificationsSheet(context),
                 ),
               ],
             ),
