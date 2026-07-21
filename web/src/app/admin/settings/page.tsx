@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAdminIdentity } from "@/lib/adminAuth";
-import { saveRazorpaySettings } from "../actions";
+import { saveRazorpaySettings, saveWhatsAppSettings } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +26,9 @@ export default async function AdminSettingsPage() {
   const keyId = status("razorpay_key_id");
   const keySecret = status("razorpay_key_secret");
   const webhookSecret = status("razorpay_webhook_secret");
+  const waPhoneNumberId = status("whatsapp_phone_number_id");
+  const waAccessToken = status("whatsapp_access_token");
+  const waBusinessAccountId = status("whatsapp_business_account_id");
   const canEdit = admin?.role === "super_admin";
 
   const inputClass =
@@ -122,6 +125,99 @@ export default async function AdminSettingsPage() {
         <code className="font-mono">https://subtrakr.me/api/billing/webhook</code>
         <p className="mt-2">Subscribe to the payment.captured event.</p>
       </div>
+
+      <h1 className="mb-2 mt-10 text-xl font-semibold">WhatsApp messaging</h1>
+      <p className="mb-6 text-sm text-ink-2">
+        Powers phone-number verification at signup (subtrakr_otp) and, once
+        wired up, renewal/payment notifications. Same encrypted vault as
+        Razorpay.
+      </p>
+
+      <div className="glass mb-6 rounded-2xl p-5">
+        <h2 className="mb-3 text-sm font-semibold">WhatsApp status</h2>
+        <ul className="space-y-2 text-sm">
+          {[
+            ["Phone number ID", waPhoneNumberId],
+            ["Access token", waAccessToken],
+            ["Business account ID", waBusinessAccountId],
+          ].map(([label, s]) => {
+            const st = s as { set: boolean; display: string };
+            return (
+              <li key={label as string} className="flex justify-between">
+                <span className="text-ink-2">{label as string}</span>
+                <span className={st.set ? "text-glow" : "text-due"}>
+                  {st.display}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+        {!(waPhoneNumberId.set && waAccessToken.set) && (
+          <p className="mt-3 text-xs text-ink-3">
+            Until both the phone number ID and access token are set, signup
+            OTP requests fail with &quot;verification isn&apos;t set up
+            yet&quot;.
+          </p>
+        )}
+      </div>
+
+      {canEdit ? (
+        <form action={saveWhatsAppSettings} className="glass rounded-2xl p-5">
+          <h2 className="mb-1 text-sm font-semibold">Update credentials</h2>
+          <p className="mb-4 text-xs text-ink-3">
+            From Meta Business Settings → System Users, generate a permanent
+            token scoped to whatsapp_business_messaging. Leave a field blank
+            to keep its current value.
+          </p>
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1 block text-xs text-ink-2">
+                Phone number ID
+              </label>
+              <input
+                name="phone_number_id"
+                placeholder={
+                  waPhoneNumberId.set ? waPhoneNumberId.display : "1234567890123456"
+                }
+                className={inputClass}
+                autoComplete="off"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-ink-2">
+                Access token
+              </label>
+              <input
+                name="access_token"
+                type="password"
+                placeholder={waAccessToken.set ? "unchanged" : "EAAG…"}
+                className={inputClass}
+                autoComplete="new-password"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-ink-2">
+                Business account ID (optional, reference only)
+              </label>
+              <input
+                name="business_account_id"
+                placeholder={
+                  waBusinessAccountId.set ? waBusinessAccountId.display : "1234567890123456"
+                }
+                className={inputClass}
+                autoComplete="off"
+              />
+            </div>
+          </div>
+          <button className="brand-gradient mt-5 rounded-lg px-5 py-2 text-sm font-bold text-[#08201a] transition hover:opacity-90">
+            Save settings
+          </button>
+        </form>
+      ) : (
+        <p className="glass rounded-2xl p-5 text-sm text-ink-2">
+          Only a super admin can change these settings.
+        </p>
+      )}
     </div>
   );
 }

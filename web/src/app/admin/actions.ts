@@ -64,3 +64,32 @@ export async function saveRazorpaySettings(formData: FormData) {
   revalidatePath("/admin/settings");
   revalidatePath("/app/billing");
 }
+
+export async function saveWhatsAppSettings(formData: FormData) {
+  const admin = await requireAdmin();
+  if (admin.role !== "super_admin") throw new Error("Super admin only");
+
+  const phoneNumberId = String(formData.get("phone_number_id") ?? "").trim();
+  const accessToken = String(formData.get("access_token") ?? "").trim();
+  const businessAccountId = String(formData.get("business_account_id") ?? "").trim();
+
+  // Blank fields mean "keep the existing value" — same pattern as Razorpay.
+  if (phoneNumberId) {
+    await setSetting("whatsapp_phone_number_id", phoneNumberId, {
+      description: "WhatsApp Cloud API phone number ID",
+    });
+  }
+  if (accessToken) {
+    await setSetting("whatsapp_access_token", accessToken, {
+      secret: true,
+      description: "WhatsApp Cloud API permanent access token",
+    });
+  }
+  if (businessAccountId) {
+    await setSetting("whatsapp_business_account_id", businessAccountId, {
+      description: "WhatsApp Business Account ID (reference only)",
+    });
+  }
+
+  revalidatePath("/admin/settings");
+}

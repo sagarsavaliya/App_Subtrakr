@@ -21,6 +21,25 @@ CREATE TABLE IF NOT EXISTS admin_users (
 ALTER TABLE admin_users ENABLE ROW LEVEL SECURITY;
 -- No policies — service_role only, by design.
 
+-- ── Phone verification challenges (verify-then-set-PIN signup) ─────────
+-- A signup proves ownership of a phone number via a WhatsApp-delivered
+-- code BEFORE the account is created — GoTrue's own phone signup is only
+-- called afterward, with SMS auto-confirm, since we've already verified
+-- the number ourselves. Only ever touched by the server (service_role) —
+-- there's no user to scope this to yet at signup time.
+CREATE TABLE IF NOT EXISTS phone_otp_challenges (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  phone TEXT NOT NULL,
+  code_hash TEXT NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  verified_at TIMESTAMPTZ,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_phone_otp_challenges_phone ON phone_otp_challenges(phone);
+ALTER TABLE phone_otp_challenges ENABLE ROW LEVEL SECURITY;
+-- No policies — service_role only, by design.
+
 -- ── App settings (Razorpay keys, SMTP, etc.) ────────────────────────────
 -- Same access model as admin_users: service_role only. Secrets are
 -- encrypted with pgcrypto using a key that lives ONLY in the Next.js
