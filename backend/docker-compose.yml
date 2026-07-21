@@ -52,7 +52,11 @@ services:
       # trip. (Phone's autoconfirm is the separate GOTRUE_SMS_AUTOCONFIRM
       # setting below and is unaffected by this.)
       GOTRUE_MAILER_AUTOCONFIRM: "false"
-      GOTRUE_SMTP_ADMIN_EMAIL: admin@subtrakr.me
+      # This doubles as the From address on every auth email GoTrue sends
+      # (OTP codes, password recovery) — needs to be verified as a sender
+      # (or the subtrakr.me domain SPF/DKIM-verified) in Brevo, or sends
+      # will bounce/spam-fold regardless of the SMTP creds being correct.
+      GOTRUE_SMTP_ADMIN_EMAIL: no-reply@subtrakr.me
       GOTRUE_SMTP_SENDER_NAME: SubTrakr
       # Brevo SMTP relay — enables password-recovery emails (previously no
       # SMTP was configured at all, so GoTrue couldn't send any mail).
