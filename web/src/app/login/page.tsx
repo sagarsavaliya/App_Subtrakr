@@ -6,13 +6,18 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
 /** PRD F1 — mobile number + 6-digit PIN is the primary credential; email +
- *  password stays as the secondary method.
+ *  PIN is the secondary method, using the same shape (verify identity via
+ *  OTP first, THEN set the PIN — the account/credential isn't finalized
+ *  until both steps pass). Phone uses a custom WhatsApp-delivered OTP
+ *  (see /api/auth/*); email uses GoTrue's own native email-OTP
+ *  (signInWithOtp/verifyOtp), now that Brevo SMTP is configured — no
+ *  custom send/verify plumbing needed there.
  *
- *  Phone SIGNUP is a 3-step wizard: verify the number via a WhatsApp OTP
- *  first, THEN ask the user to set the PIN they'll actually sign in with —
- *  the account itself isn't created until both steps pass. Phone SIGN-IN
- *  stays a single step, since an existing account was already verified at
- *  signup time. */
+ *  Existing accounts created before this (arbitrary-length password, not
+ *  a 6-digit PIN) still sign in fine — the sign-in password field has no
+ *  digit-only or length-6 restriction, only signup enforces the new PIN
+ *  shape. Sign-in itself is a single step either way; only signup is the
+ *  3-step wizard. */
 
 function normalizePhone(raw: string): string {
   const digits = raw.replace(/[^\d+]/g, "");
@@ -25,14 +30,14 @@ function isValidIndianMobile(raw: string): boolean {
   return /^\+91[6-9]\d{9}$/.test(normalizePhone(raw));
 }
 
-type PhoneStep = "details" | "otp" | "pin";
+type WizardStep = "details" | "otp" | "pin";
 
 function LoginForm() {
   const router = useRouter();
   const search = useSearchParams();
   const [isSignUp, setIsSignUp] = useState(search.get("mode") === "signup");
   const [useEmail, setUseEmail] = useState(false);
-  const [phoneStep, setPhoneStep] = useState<PhoneStep>("details");
+  const [step, setStep] = useState<WizardStep>("details");
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -56,8 +61,8 @@ function LoginForm() {
     router.refresh();
   }
 
-  function resetPhoneWizard() {
-    setPhoneStep("details");
+  function resetWizard() {
+    setStep("details");
     setOtp("");
     setPin("");
     setConfirmPin("");
@@ -86,22 +91,46 @@ function LoginForm() {
     setError(null);
 
     if (useEmail) {
-      if (isSignUp && !name.trim()) return setError("Enter your name.");
-      setLoading(true);
-      const supabase = createClient();
-      const result = isSignUp
-        ? await supabase.auth.signUp({
-            email,
-            password,
-            options: { data: { full_name: name.trim() } },
-          })
-        : await supabase.auth.signInWithPassword({ email, password });
-      if (result.error) {
-        setError(result.error.message);
+      if (!isSignUp) {
+        // Existing account — plain password, whatever length/shape it has.
+        setLoading(true);
+        const { error } = await createClient().auth.signInWithPassword({
+          email,
+          password,
+        });
         setLoading(false);
+        if (error) {
+          setError(error.message);
+          return;
+        }
+        return done();
+      }
+
+      // Signup step 1: precheck, then send the email OTP.
+      if (!name.trim()) return setError("Enter your name.");
+      setLoading(true);
+      const precheck = await fetch("/api/auth/email/precheck", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const precheckBody = await precheck.json();
+      if (!precheck.ok) {
+        setLoading(false);
+        setError(precheckBody.error ?? "Could not verify that email.");
         return;
       }
-      return done();
+      const { error } = await createClient().auth.signInWithOtp({
+        email,
+        options: { shouldCreateUser: true, data: { full_name: name.trim() } },
+      });
+      setLoading(false);
+      if (error) {
+        setError(error.message);
+        return;
+      }
+      setStep("otp");
+      return;
     }
 
     if (!isValidIndianMobile(phone)) {
@@ -142,13 +171,27 @@ function LoginForm() {
       setError(body.error ?? "Could not send the code. Try again.");
       return;
     }
-    setPhoneStep("otp");
+    setStep("otp");
   }
 
   async function resendOtp() {
     if (resendCooldown) return;
     setError(null);
     setLoading(true);
+    if (useEmail) {
+      const { error } = await createClient().auth.signInWithOtp({
+        email,
+        options: { shouldCreateUser: true, data: { full_name: name.trim() } },
+      });
+      setLoading(false);
+      if (error) {
+        setError(error.message);
+        return;
+      }
+      setResendCooldown(true);
+      setTimeout(() => setResendCooldown(false), 60_000);
+      return;
+    }
     const res = await fetch("/api/auth/send-otp", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -169,6 +212,22 @@ function LoginForm() {
     if (!/^\d{6}$/.test(otp)) return setError("Enter the 6-digit code.");
     setError(null);
     setLoading(true);
+
+    if (useEmail) {
+      const { error } = await createClient().auth.verifyOtp({
+        email,
+        token: otp,
+        type: "email",
+      });
+      setLoading(false);
+      if (error) {
+        setError(error.message);
+        return;
+      }
+      setStep("pin");
+      return;
+    }
+
     const res = await fetch("/api/auth/verify-otp", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -180,7 +239,7 @@ function LoginForm() {
       setError(body.error ?? "Incorrect code.");
       return;
     }
-    setPhoneStep("pin");
+    setStep("pin");
   }
 
   async function setPinAndFinish(e: React.FormEvent) {
@@ -189,6 +248,19 @@ function LoginForm() {
     if (pin !== confirmPin) return setError("PINs don't match.");
     setError(null);
     setLoading(true);
+
+    if (useEmail) {
+      // Already signed in (verifyOtp established the session) — this just
+      // finalizes the PIN as the account's password.
+      const { error } = await createClient().auth.updateUser({ password: pin });
+      setLoading(false);
+      if (error) {
+        setError(error.message);
+        return;
+      }
+      return done();
+    }
+
     const res = await fetch("/api/auth/complete-signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -205,9 +277,11 @@ function LoginForm() {
 
   const title = forgotMode
     ? "Reset your password"
-    : !useEmail && isSignUp && phoneStep === "otp"
-      ? "Verify your number"
-      : !useEmail && isSignUp && phoneStep === "pin"
+    : isSignUp && step === "otp"
+      ? useEmail
+        ? "Verify your email"
+        : "Verify your number"
+      : isSignUp && step === "pin"
         ? "Set your PIN"
         : isSignUp
           ? "Create your account"
@@ -261,10 +335,12 @@ function LoginForm() {
               </button>
             </form>
           )
-        ) : !useEmail && isSignUp && phoneStep === "otp" ? (
+        ) : isSignUp && step === "otp" ? (
           <form onSubmit={verifyOtp} className="glass rounded-3xl p-6">
             <p className="mb-4 text-sm text-ink-2">
-              We sent a 6-digit code over WhatsApp to +91 {phone}
+              {useEmail
+                ? `We sent a 6-digit code to ${email}`
+                : `We sent a 6-digit code over WhatsApp to +91 ${phone}`}
             </p>
             <input
               type="text"
@@ -286,10 +362,10 @@ function LoginForm() {
             <div className="mt-3 flex items-center justify-between text-xs">
               <button
                 type="button"
-                onClick={resetPhoneWizard}
+                onClick={resetWizard}
                 className="text-ink-3 hover:text-ink-2"
               >
-                Change number
+                {useEmail ? "Change email" : "Change number"}
               </button>
               <button
                 type="button"
@@ -301,10 +377,11 @@ function LoginForm() {
               </button>
             </div>
           </form>
-        ) : !useEmail && isSignUp && phoneStep === "pin" ? (
+        ) : isSignUp && step === "pin" ? (
           <form onSubmit={setPinAndFinish} className="glass rounded-3xl p-6">
             <p className="mb-4 text-sm text-ink-2">
-              Number verified. Choose the 6-digit PIN you&apos;ll use to sign in from now on.
+              {useEmail ? "Email" : "Number"} verified. Choose the 6-digit PIN
+              you&apos;ll use to sign in from now on.
             </p>
             <input
               type="password"
@@ -356,26 +433,34 @@ function LoginForm() {
                   required
                   className={inputClass}
                 />
-                <input
-                  type="password"
-                  placeholder="Password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={6}
-                  className={inputClass}
-                />
                 {!isSignUp && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setForgotMode(true);
-                      setError(null);
-                    }}
-                    className="mb-1 w-full text-right text-xs text-ink-3 hover:text-ink-2"
-                  >
-                    Forgot password?
-                  </button>
+                  <>
+                    <input
+                      type="password"
+                      placeholder="Password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      minLength={6}
+                      className={inputClass}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForgotMode(true);
+                        setError(null);
+                      }}
+                      className="mb-1 w-full text-right text-xs text-ink-3 hover:text-ink-2"
+                    >
+                      Forgot password?
+                    </button>
+                  </>
+                )}
+                {isSignUp && (
+                  <p className="mb-3 text-xs text-ink-3">
+                    We&apos;ll email you a verification code, then you&apos;ll
+                    set a 6-digit PIN.
+                  </p>
                 )}
               </>
             ) : (
@@ -424,21 +509,19 @@ function LoginForm() {
             >
               {loading
                 ? "Please wait…"
-                : isSignUp && !useEmail
+                : isSignUp
                   ? "Send verification code"
-                  : isSignUp
-                    ? "Create account"
-                    : "Sign in"}
+                  : "Sign in"}
             </button>
           </form>
         )}
 
-        {phoneStep === "details" && !forgotMode && (
+        {step === "details" && !forgotMode && (
           <>
             <button
               onClick={() => {
                 setIsSignUp(!isSignUp);
-                resetPhoneWizard();
+                resetWizard();
               }}
               className="mt-5 w-full text-center text-sm text-glow hover:underline"
             >
@@ -449,7 +532,7 @@ function LoginForm() {
             <button
               onClick={() => {
                 setUseEmail(!useEmail);
-                resetPhoneWizard();
+                resetWizard();
               }}
               className="mt-2 w-full text-center text-xs text-ink-3 hover:text-ink-2"
             >

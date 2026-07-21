@@ -52,6 +52,13 @@ services:
       GOTRUE_SMTP_PORT: ${BREVO_SMTP_PORT}
       GOTRUE_SMTP_USER: ${BREVO_SMTP_USER}
       GOTRUE_SMTP_PASS: ${BREVO_SMTP_PASS}
+      # signInWithOtp()'s email defaults to a clickable magic link — this
+      # swaps in a typed 6-digit code ({{ .Token }}) so the email flow
+      # matches the WhatsApp OTP flow's UX. GoTrue fetches this template
+      # live over HTTP each send, so it's just a public static file, no
+      # secret involved.
+      GOTRUE_MAILER_TEMPLATES_MAGIC_LINK: https://subtrakr.me/email-templates/otp.html
+      GOTRUE_MAILER_SUBJECTS_MAGIC_LINK: "Your SubTrakr verification code"
       GOTRUE_EXTERNAL_GOOGLE_ENABLED: "false"
       # Mobile number + 6-digit PIN is the primary credential (PRD F1).
       # SMS_AUTOCONFIRM stays on until a real SMS gateway (MSG91/Twilio —

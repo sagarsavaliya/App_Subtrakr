@@ -17,7 +17,17 @@ import '../../widgets/common/aurora_background.dart';
 import '../../widgets/common/glass_surface.dart';
 
 /// PRD F1 — mobile number + 6-digit PIN is the primary credential; email +
-/// password stays available as the secondary method.
+/// PIN is the secondary method, using the same shape (verify identity via
+/// OTP first, THEN set the PIN). Phone uses a custom WhatsApp-delivered
+/// OTP; email uses GoTrue's own native email-OTP (Brevo SMTP + a custom
+/// template render the code instead of a magic link) — see
+/// AuthService.sendEmailOtp for why that needs no custom plumbing.
+///
+/// Existing email accounts made before this (arbitrary-length password)
+/// still sign in fine — the sign-in password field has no digit/length-6
+/// restriction, only signup enforces the new PIN shape.
+enum _WizardStep { details, otp, pin }
+
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
@@ -29,13 +39,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _pinController = TextEditingController();
+  final _confirmPinController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _otpController = TextEditingController();
 
   bool _isSignUp = false;
   bool _useEmail = false;
-  bool _awaitingOtp = false;
+  _WizardStep _step = _WizardStep.details;
+  bool _forgotMode = false;
+  bool _resetSent = false;
   bool _loading = false;
   String? _error;
 
@@ -44,10 +57,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _nameController.dispose();
     _phoneController.dispose();
     _pinController.dispose();
+    _confirmPinController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _otpController.dispose();
     super.dispose();
+  }
+
+  void _resetWizard() {
+    setState(() {
+      _step = _WizardStep.details;
+      _forgotMode = false;
+      _resetSent = false;
+      _otpController.clear();
+      _pinController.clear();
+      _confirmPinController.clear();
+      _error = null;
+    });
   }
 
   Future<void> _finishSignIn() async {
@@ -62,97 +88,203 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     context.go('/dashboard');
   }
 
-  Future<void> _submit() async {
-    final name = _nameController.text.trim();
-    String? error;
-    var needsOtp = false;
-
-    if (_useEmail) {
-      final email = _emailController.text.trim();
-      final password = _passwordController.text;
-      if (email.isEmpty || !email.contains('@')) {
-        setState(() => _error = 'Enter a valid email address.');
-        return;
-      }
-      if (password.length < 6) {
-        setState(() => _error = 'Password must be at least 6 characters.');
-        return;
-      }
-      if (_isSignUp && name.isEmpty) {
-        setState(() => _error = 'Enter your name.');
-        return;
-      }
-      setState(() {
-        _loading = true;
-        _error = null;
-      });
-      error = _isSignUp
-          ? await AuthService.signUp(name: name, email: email, password: password)
-          : await AuthService.signIn(email: email, password: password);
-    } else {
-      final phone = _phoneController.text.trim();
-      final pin = _pinController.text;
-      if (!AuthService.isValidIndianMobile(phone)) {
-        setState(() => _error = 'Enter a valid 10-digit mobile number.');
-        return;
-      }
-      if (pin.length != 6) {
-        setState(() => _error = 'Your PIN must be exactly 6 digits.');
-        return;
-      }
-      if (_isSignUp && name.isEmpty) {
-        setState(() => _error = 'Enter your name.');
-        return;
-      }
-      setState(() {
-        _loading = true;
-        _error = null;
-      });
-      if (_isSignUp) {
-        final result = await AuthService.signUpWithPhone(
-          name: name,
-          phone: phone,
-          pin: pin,
-        );
-        error = result.error;
-        needsOtp = result.needsOtp;
-      } else {
-        error = await AuthService.signInWithPhone(phone: phone, pin: pin);
-      }
-    }
-
-    if (!mounted) return;
-    if (error != null) {
-      setState(() {
-        _loading = false;
-        _error = error;
-      });
-      return;
-    }
-    if (needsOtp) {
-      setState(() {
-        _loading = false;
-        _awaitingOtp = true;
-        _error = null;
-      });
-      return;
-    }
-    await _finishSignIn();
-  }
-
-  Future<void> _verifyOtp() async {
-    if (_otpController.text.length != 6) {
-      setState(() => _error = 'Enter the 6-digit code from the SMS.');
+  Future<void> _submitForgot() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      setState(() => _error = 'Enter a valid email address.');
       return;
     }
     setState(() {
       _loading = true;
       _error = null;
     });
+    final error = await AuthService.sendPasswordReset(email);
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      if (error != null) {
+        _error = error;
+      } else {
+        _resetSent = true;
+      }
+    });
+  }
+
+  Future<void> _submit() async {
+    final name = _nameController.text.trim();
+
+    if (_useEmail) {
+      final email = _emailController.text.trim();
+      if (email.isEmpty || !email.contains('@')) {
+        setState(() => _error = 'Enter a valid email address.');
+        return;
+      }
+
+      if (!_isSignUp) {
+        final password = _passwordController.text;
+        if (password.length < 6) {
+          setState(() => _error = 'Password must be at least 6 characters.');
+          return;
+        }
+        setState(() {
+          _loading = true;
+          _error = null;
+        });
+        final error = await AuthService.signIn(email: email, password: password);
+        if (!mounted) return;
+        if (error != null) {
+          setState(() {
+            _loading = false;
+            _error = error;
+          });
+          return;
+        }
+        return _finishSignIn();
+      }
+
+      // Signup step 1: precheck, then send the email OTP.
+      if (name.isEmpty) {
+        setState(() => _error = 'Enter your name.');
+        return;
+      }
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+      final precheckError = await AuthService.emailPrecheck(email);
+      if (!mounted) return;
+      if (precheckError != null) {
+        setState(() {
+          _loading = false;
+          _error = precheckError;
+        });
+        return;
+      }
+      final error = await AuthService.sendEmailOtp(name: name, email: email);
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        if (error != null) {
+          _error = error;
+        } else {
+          _step = _WizardStep.otp;
+        }
+      });
+      return;
+    }
+
+    final phone = _phoneController.text.trim();
+    if (!AuthService.isValidIndianMobile(phone)) {
+      setState(() => _error = 'Enter a valid 10-digit mobile number.');
+      return;
+    }
+
+    if (!_isSignUp) {
+      final pin = _pinController.text;
+      if (pin.length != 6) {
+        setState(() => _error = 'Your PIN must be exactly 6 digits.');
+        return;
+      }
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+      final error = await AuthService.signInWithPhone(phone: phone, pin: pin);
+      if (!mounted) return;
+      if (error != null) {
+        setState(() {
+          _loading = false;
+          _error = error;
+        });
+        return;
+      }
+      return _finishSignIn();
+    }
+
+    if (name.isEmpty) {
+      setState(() => _error = 'Enter your name.');
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    final error = await AuthService.sendPhoneOtp(phone);
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      if (error != null) {
+        _error = error;
+      } else {
+        _step = _WizardStep.otp;
+      }
+    });
+  }
+
+  Future<void> _verifyOtp() async {
+    if (_otpController.text.length != 6) {
+      setState(() => _error = 'Enter the 6-digit code.');
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    if (_useEmail) {
+      final error = await AuthService.verifyEmailOtp(
+        email: _emailController.text.trim(),
+        otp: _otpController.text,
+      );
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        if (error != null) {
+          _error = error;
+        } else {
+          _step = _WizardStep.pin;
+        }
+      });
+      return;
+    }
+
     final error = await AuthService.verifyPhoneOtp(
       phone: _phoneController.text.trim(),
       otp: _otpController.text,
     );
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      if (error != null) {
+        _error = error;
+      } else {
+        _step = _WizardStep.pin;
+      }
+    });
+  }
+
+  Future<void> _setPinAndFinish() async {
+    final pin = _pinController.text;
+    if (pin.length != 6) {
+      setState(() => _error = 'Your PIN must be exactly 6 digits.');
+      return;
+    }
+    if (pin != _confirmPinController.text) {
+      setState(() => _error = 'PINs don\'t match.');
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    final error = _useEmail
+        ? await AuthService.setPin(pin)
+        : await AuthService.completePhoneSignup(
+            name: _nameController.text.trim(),
+            phone: _phoneController.text.trim(),
+            pin: pin,
+          );
     if (!mounted) return;
     if (error != null) {
       setState(() {
@@ -166,6 +298,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final title = _forgotMode
+        ? 'Reset your password'
+        : _isSignUp && _step == _WizardStep.otp
+            ? (_useEmail ? 'Verify your email' : 'Verify your number')
+            : _isSignUp && _step == _WizardStep.pin
+                ? 'Set your PIN'
+                : _isSignUp
+                    ? 'Create your account'
+                    : 'Welcome back';
+
     return AuroraBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
@@ -193,11 +335,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      _awaitingOtp
-                          ? 'Verify your number'
-                          : _isSignUp
-                              ? 'Create your account'
-                              : 'Welcome back',
+                      title,
                       style: AppTextStyles.hint.copyWith(
                         color: AppColors.textSecondary,
                         fontSize: 13,
@@ -207,17 +345,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     GlassSurface(
                       borderRadius: 22,
                       padding: const EdgeInsets.all(20),
-                      child: _awaitingOtp ? _buildOtpForm() : _buildAuthForm(),
+                      child: _forgotMode
+                          ? _buildForgotForm()
+                          : _step == _WizardStep.otp
+                              ? _buildOtpForm()
+                              : _step == _WizardStep.pin
+                                  ? _buildPinForm()
+                                  : _buildAuthForm(),
                     ),
                     const SizedBox(height: 18),
-                    if (!_awaitingOtp) ...[
+                    if (_step == _WizardStep.details && !_forgotMode) ...[
                       TextButton(
                         onPressed: _loading
                             ? null
-                            : () => setState(() {
-                                  _isSignUp = !_isSignUp;
-                                  _error = null;
-                                }),
+                            : () {
+                                _resetWizard();
+                                setState(() => _isSignUp = !_isSignUp);
+                              },
                         child: Text(
                           _isSignUp
                               ? 'Already have an account?  Sign in'
@@ -231,10 +375,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       TextButton(
                         onPressed: _loading
                             ? null
-                            : () => setState(() {
-                                  _useEmail = !_useEmail;
-                                  _error = null;
-                                }),
+                            : () {
+                                _resetWizard();
+                                setState(() => _useEmail = !_useEmail);
+                              },
                         child: Text(
                           _useEmail
                               ? 'Use mobile number instead'
@@ -252,6 +396,51 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildForgotForm() {
+    if (_resetSent) {
+      return Text(
+        'If an account exists for ${_emailController.text.trim()}, a reset link has been sent. Open it in your browser to set a new password.',
+        style: AppTextStyles.body,
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Enter your email and we\'ll send a reset link.',
+          style: AppTextStyles.body,
+        ),
+        const SizedBox(height: 14),
+        _AuthField(
+          controller: _emailController,
+          hint: 'Email',
+          icon: Icons.mail_outline,
+          keyboardType: TextInputType.emailAddress,
+          onSubmitted: (_) => _submitForgot(),
+        ),
+        if (_error != null) ...[
+          const SizedBox(height: 14),
+          Text(
+            _error!,
+            style: AppTextStyles.hint.copyWith(color: AppColors.overdue),
+          ),
+        ],
+        const SizedBox(height: 18),
+        _loading
+            ? const _Spinner()
+            : GradientButton(label: 'Send reset link', onPressed: _submitForgot),
+        const SizedBox(height: 8),
+        TextButton(
+          onPressed: _loading ? null : _resetWizard,
+          child: Text(
+            'Back to sign in',
+            style: AppTextStyles.hint.copyWith(color: AppColors.textSecondary),
+          ),
+        ),
+      ],
     );
   }
 
@@ -274,14 +463,42 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             icon: Icons.mail_outline,
             keyboardType: TextInputType.emailAddress,
           ),
-          const SizedBox(height: 12),
-          _AuthField(
-            controller: _passwordController,
-            hint: 'Password',
-            icon: Icons.lock_outline,
-            obscure: true,
-            onSubmitted: (_) => _submit(),
-          ),
+          if (!_isSignUp) ...[
+            const SizedBox(height: 12),
+            _AuthField(
+              controller: _passwordController,
+              hint: 'Password',
+              icon: Icons.lock_outline,
+              obscure: true,
+              onSubmitted: (_) => _submit(),
+            ),
+            const SizedBox(height: 6),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => setState(() {
+                  _forgotMode = true;
+                  _error = null;
+                }),
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(0, 0),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(
+                  'Forgot password?',
+                  style: AppTextStyles.hint.copyWith(color: AppColors.textSecondary),
+                ),
+              ),
+            ),
+          ],
+          if (_isSignUp) ...[
+            const SizedBox(height: 10),
+            Text(
+              'We\'ll email you a verification code, then you\'ll set a 6-digit PIN.',
+              style: AppTextStyles.hint,
+            ),
+          ],
         ] else ...[
           _AuthField(
             controller: _phoneController,
@@ -294,23 +511,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               LengthLimitingTextInputFormatter(10),
             ],
           ),
-          const SizedBox(height: 12),
-          _AuthField(
-            controller: _pinController,
-            hint: '6-digit PIN',
-            icon: Icons.pin_outlined,
-            obscure: true,
-            keyboardType: TextInputType.number,
-            inputFormatters: [
-              FilteringTextInputFormatter.digitsOnly,
-              LengthLimitingTextInputFormatter(6),
-            ],
-            onSubmitted: (_) => _submit(),
-          ),
+          if (!_isSignUp) ...[
+            const SizedBox(height: 12),
+            _AuthField(
+              controller: _pinController,
+              hint: '6-digit PIN',
+              icon: Icons.pin_outlined,
+              obscure: true,
+              keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(6),
+              ],
+              onSubmitted: (_) => _submit(),
+            ),
+          ],
           if (_isSignUp) ...[
             const SizedBox(height: 10),
             Text(
-              'You\'ll sign in with this number and PIN.',
+              'We\'ll verify this number over WhatsApp, then you\'ll set a PIN.',
               style: AppTextStyles.hint,
             ),
           ],
@@ -326,7 +545,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _loading
             ? const _Spinner()
             : GradientButton(
-                label: _isSignUp ? 'Create account' : 'Sign in',
+                label: _isSignUp ? 'Send verification code' : 'Sign in',
                 onPressed: _submit,
               ),
       ],
@@ -338,7 +557,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'We sent a 6-digit code to +91 ${_phoneController.text}',
+          _useEmail
+              ? 'We sent a 6-digit code to ${_emailController.text.trim()}'
+              : 'We sent a 6-digit code over WhatsApp to +91 ${_phoneController.text}',
           style: AppTextStyles.body,
         ),
         const SizedBox(height: 14),
@@ -366,18 +587,60 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             : GradientButton(label: 'Verify', onPressed: _verifyOtp),
         const SizedBox(height: 8),
         TextButton(
-          onPressed: _loading
-              ? null
-              : () => setState(() {
-                    _awaitingOtp = false;
-                    _otpController.clear();
-                    _error = null;
-                  }),
+          onPressed: _loading ? null : _resetWizard,
           child: Text(
-            'Change number',
+            _useEmail ? 'Change email' : 'Change number',
             style: AppTextStyles.hint.copyWith(color: AppColors.textSecondary),
           ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildPinForm() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          '${_useEmail ? 'Email' : 'Number'} verified. Choose the 6-digit PIN you\'ll use to sign in from now on.',
+          style: AppTextStyles.body,
+        ),
+        const SizedBox(height: 14),
+        _AuthField(
+          controller: _pinController,
+          hint: '6-digit PIN',
+          icon: Icons.pin_outlined,
+          obscure: true,
+          keyboardType: TextInputType.number,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(6),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _AuthField(
+          controller: _confirmPinController,
+          hint: 'Confirm PIN',
+          icon: Icons.pin_outlined,
+          obscure: true,
+          keyboardType: TextInputType.number,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(6),
+          ],
+          onSubmitted: (_) => _setPinAndFinish(),
+        ),
+        if (_error != null) ...[
+          const SizedBox(height: 14),
+          Text(
+            _error!,
+            style: AppTextStyles.hint.copyWith(color: AppColors.overdue),
+          ),
+        ],
+        const SizedBox(height: 18),
+        _loading
+            ? const _Spinner()
+            : GradientButton(label: 'Create account', onPressed: _setPinAndFinish),
       ],
     );
   }

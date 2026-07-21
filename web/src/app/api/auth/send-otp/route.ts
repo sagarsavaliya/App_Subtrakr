@@ -1,13 +1,17 @@
-import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendPhoneOtp } from "@/lib/otpChallenge";
+import { corsJson, corsPreflight } from "@/lib/cors";
 
 const PHONE_RE = /^\+91[6-9]\d{9}$/;
+
+export async function OPTIONS() {
+  return corsPreflight();
+}
 
 export async function POST(request: Request) {
   const { phone } = (await request.json()) as { phone?: string };
   if (!phone || !PHONE_RE.test(phone)) {
-    return NextResponse.json({ error: "Enter a valid mobile number." }, { status: 400 });
+    return corsJson({ error: "Enter a valid mobile number." }, { status: 400 });
   }
 
   // Don't burn a WhatsApp send on a number that's already got an account —
@@ -17,7 +21,7 @@ export async function POST(request: Request) {
   const { data } = await db.auth.admin.listUsers({ page: 1, perPage: 1000 });
   const exists = data?.users?.some((u) => u.phone === phone.replace("+", ""));
   if (exists) {
-    return NextResponse.json(
+    return corsJson(
       { error: "This mobile number already has an account — sign in instead." },
       { status: 409 },
     );
@@ -25,7 +29,7 @@ export async function POST(request: Request) {
 
   const result = await sendPhoneOtp(phone);
   if (!result.ok) {
-    return NextResponse.json({ error: result.error }, { status: 400 });
+    return corsJson({ error: result.error }, { status: 400 });
   }
-  return NextResponse.json({ ok: true });
+  return corsJson({ ok: true });
 }

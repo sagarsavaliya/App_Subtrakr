@@ -63,6 +63,7 @@ dependencies:
   # the identical Dart API (ReceiveSharingIntent.instance.getInitialMedia
   # /getMediaStream/reset, SharedMediaFile) — no code changes needed.
   receive_sharing_intent: 1.8.1
+  http: ^1.2.0
 
 dev_dependencies:
   flutter_test:
