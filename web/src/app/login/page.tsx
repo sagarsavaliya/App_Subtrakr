@@ -45,6 +45,8 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(false);
+  const [forgotMode, setForgotMode] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
 
   const inputClass =
     "glass mb-3 w-full rounded-xl px-4 py-3 text-sm outline-none placeholder:text-ink-3 focus:border-glow/40";
@@ -59,7 +61,24 @@ function LoginForm() {
     setOtp("");
     setPin("");
     setConfirmPin("");
+    setForgotMode(false);
+    setResetSent(false);
     setError(null);
+  }
+
+  async function submitForgot(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    const { error } = await createClient().auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setLoading(false);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setResetSent(true);
   }
 
   async function submit(e: React.FormEvent) {
@@ -184,8 +203,9 @@ function LoginForm() {
     done();
   }
 
-  const title =
-    !useEmail && isSignUp && phoneStep === "otp"
+  const title = forgotMode
+    ? "Reset your password"
+    : !useEmail && isSignUp && phoneStep === "otp"
       ? "Verify your number"
       : !useEmail && isSignUp && phoneStep === "pin"
         ? "Set your PIN"
@@ -203,7 +223,45 @@ function LoginForm() {
           <p className="mt-2 text-sm text-ink-2">{title}</p>
         </div>
 
-        {!useEmail && isSignUp && phoneStep === "otp" ? (
+        {forgotMode ? (
+          resetSent ? (
+            <div className="glass rounded-3xl p-6 text-center text-sm text-ink-2">
+              If an account exists for {email}, a reset link has been sent.
+            </div>
+          ) : (
+            <form onSubmit={submitForgot} className="glass rounded-3xl p-6">
+              <p className="mb-4 text-sm text-ink-2">
+                Enter your email and we&apos;ll send a reset link.
+              </p>
+              <input
+                type="email"
+                placeholder="Email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className={inputClass}
+              />
+              {error && <p className="mb-4 text-sm text-overdue">{error}</p>}
+              <button
+                type="submit"
+                disabled={loading}
+                className="brand-gradient glow-shadow w-full rounded-xl py-3 text-sm font-bold text-[#08201a] transition hover:opacity-90 disabled:opacity-50"
+              >
+                {loading ? "Sending…" : "Send reset link"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setForgotMode(false);
+                  setError(null);
+                }}
+                className="mt-3 w-full text-center text-xs text-ink-3 hover:text-ink-2"
+              >
+                Back to sign in
+              </button>
+            </form>
+          )
+        ) : !useEmail && isSignUp && phoneStep === "otp" ? (
           <form onSubmit={verifyOtp} className="glass rounded-3xl p-6">
             <p className="mb-4 text-sm text-ink-2">
               We sent a 6-digit code over WhatsApp to +91 {phone}
@@ -307,6 +365,18 @@ function LoginForm() {
                   minLength={6}
                   className={inputClass}
                 />
+                {!isSignUp && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForgotMode(true);
+                      setError(null);
+                    }}
+                    className="mb-1 w-full text-right text-xs text-ink-3 hover:text-ink-2"
+                  >
+                    Forgot password?
+                  </button>
+                )}
               </>
             ) : (
               <>
@@ -363,7 +433,7 @@ function LoginForm() {
           </form>
         )}
 
-        {phoneStep === "details" && (
+        {phoneStep === "details" && !forgotMode && (
           <>
             <button
               onClick={() => {

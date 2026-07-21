@@ -44,6 +44,14 @@ services:
       GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
       GOTRUE_MAILER_AUTOCONFIRM: "true"
       GOTRUE_SMTP_ADMIN_EMAIL: admin@subtrakr.me
+      GOTRUE_SMTP_SENDER_NAME: SubTrakr
+      # Brevo SMTP relay — enables password-recovery emails (previously no
+      # SMTP was configured at all, so GoTrue couldn't send any mail).
+      # Values live only in this VPS's own .env, never in git.
+      GOTRUE_SMTP_HOST: ${BREVO_SMTP_HOST}
+      GOTRUE_SMTP_PORT: ${BREVO_SMTP_PORT}
+      GOTRUE_SMTP_USER: ${BREVO_SMTP_USER}
+      GOTRUE_SMTP_PASS: ${BREVO_SMTP_PASS}
       GOTRUE_EXTERNAL_GOOGLE_ENABLED: "false"
       # Mobile number + 6-digit PIN is the primary credential (PRD F1).
       # SMS_AUTOCONFIRM stays on until a real SMS gateway (MSG91/Twilio —
