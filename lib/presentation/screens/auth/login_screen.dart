@@ -50,6 +50,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _forgotMode = false;
   bool _resetSent = false;
   bool _loading = false;
+  bool _resendCooldown = false;
   String? _error;
 
   @override
@@ -69,6 +70,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _step = _WizardStep.details;
       _forgotMode = false;
       _resetSent = false;
+      _resendCooldown = false;
       _otpController.clear();
       _pinController.clear();
       _confirmPinController.clear();
@@ -261,6 +263,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _step = _WizardStep.pin;
       }
     });
+  }
+
+  Future<void> _resendOtp() async {
+    if (_resendCooldown) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    final error = _useEmail
+        ? await AuthService.sendEmailOtp(
+            name: _nameController.text.trim(),
+            email: _emailController.text.trim(),
+          )
+        : await AuthService.sendPhoneOtp(_phoneController.text.trim());
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      _error = error;
+    });
+    if (error == null) {
+      setState(() => _resendCooldown = true);
+      Future.delayed(const Duration(seconds: 60), () {
+        if (mounted) setState(() => _resendCooldown = false);
+      });
+    }
   }
 
   Future<void> _setPinAndFinish() async {
@@ -586,12 +613,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ? const _Spinner()
             : GradientButton(label: 'Verify', onPressed: _verifyOtp),
         const SizedBox(height: 8),
-        TextButton(
-          onPressed: _loading ? null : _resetWizard,
-          child: Text(
-            _useEmail ? 'Change email' : 'Change number',
-            style: AppTextStyles.hint.copyWith(color: AppColors.textSecondary),
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            TextButton(
+              onPressed: _loading ? null : _resetWizard,
+              child: Text(
+                _useEmail ? 'Change email' : 'Change number',
+                style: AppTextStyles.hint.copyWith(color: AppColors.textSecondary),
+              ),
+            ),
+            TextButton(
+              onPressed: _loading || _resendCooldown ? null : _resendOtp,
+              child: Text(
+                _resendCooldown ? 'Code sent — wait a moment' : 'Resend code',
+                style: AppTextStyles.hint.copyWith(
+                  color: _resendCooldown
+                      ? AppColors.textHint
+                      : AppColors.accentGlow,
+                ),
+              ),
+            ),
+          ],
         ),
       ],
     );
