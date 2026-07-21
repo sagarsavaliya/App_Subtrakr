@@ -70,7 +70,20 @@ jobs:
 
       - name: Smoke test
         run: |
-          sleep 5
-          curl -sf https://supabase.subtrakr.me/auth/v1/health \
-            -H "apikey: $(grep ^ANON_KEY /var/www/subtrakr-supabase/.env | cut -d= -f2)" \
-            | grep -q GoTrue
+          # A brief 502 right after container recreation is normal — Kong's
+          # DNS resolver (30s TTL) can lag a beat behind the new container
+          # IP. Retry instead of failing the whole deploy on one bad hit
+          # (hit this exact false alarm once — internal Kong->auth was
+          # already 200 OK while the public endpoint still 502'd).
+          ANON_KEY=$(grep ^ANON_KEY /var/www/subtrakr-supabase/.env | cut -d= -f2)
+          for i in 1 2 3 4 5 6; do
+            if curl -sf https://supabase.subtrakr.me/auth/v1/health \
+                -H "apikey: $ANON_KEY" | grep -q GoTrue; then
+              echo "Healthy on attempt $i"
+              exit 0
+            fi
+            echo "Attempt $i not healthy yet, waiting..."
+            sleep 5
+          done
+          echo "::error::Auth still not healthy after 6 attempts"
+          exit 1
