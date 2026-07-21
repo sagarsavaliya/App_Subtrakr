@@ -146,9 +146,14 @@ VALUES
   ('team', 'Team', 'Everything in Pro, for your whole finance team.', 499, 4990, NULL, NULL, 2)
 ON CONFLICT (code) DO NOTHING;
 
--- Bootstrap the owner as super admin. No-ops until that email has actually
--- signed up (auth.users row exists); promotes automatically on the next
--- deploy after signup. Idempotent via the user_id UNIQUE constraint.
+-- Bootstrap the owner as super admin. Each no-ops until that email has
+-- actually signed up (auth.users row exists); promotes automatically on
+-- the next deploy after signup. Idempotent via the user_id UNIQUE
+-- constraint — safe if the admin_users row is ever wiped and this re-runs.
 INSERT INTO admin_users (user_id, role)
 SELECT id, 'super_admin' FROM auth.users WHERE email = 'savaliya.sagar07@gmail.com'
+ON CONFLICT (user_id) DO NOTHING;
+
+INSERT INTO admin_users (user_id, role)
+SELECT id, 'super_admin' FROM auth.users WHERE email = 'savaliya.sagar@hotmail.com'
 ON CONFLICT (user_id) DO NOTHING;
