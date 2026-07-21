@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getAdminIdentity } from "@/lib/adminAuth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { setSetting } from "@/lib/settings";
+import { testWhatsAppConnection, type WhatsAppDiagnostic } from "@/lib/whatsapp";
 
 async function requireAdmin() {
   const admin = await getAdminIdentity();
@@ -92,4 +93,11 @@ export async function saveWhatsAppSettings(formData: FormData) {
   }
 
   revalidatePath("/admin/settings");
+}
+
+export async function runWhatsAppTest(): Promise<
+  WhatsAppDiagnostic | { notConfigured: true }
+> {
+  await requireAdmin();
+  return testWhatsAppConnection();
 }

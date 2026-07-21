@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAdminIdentity } from "@/lib/adminAuth";
 import { saveRazorpaySettings, saveWhatsAppSettings } from "../actions";
+import { WhatsAppTestButton } from "@/components/WhatsAppTestButton";
 
 export const dynamic = "force-dynamic";
 
@@ -159,6 +160,7 @@ export default async function AdminSettingsPage() {
             yet&quot;.
           </p>
         )}
+        <WhatsAppTestButton />
       </div>
 
       {canEdit ? (

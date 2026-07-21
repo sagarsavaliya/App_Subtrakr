@@ -42,7 +42,16 @@ services:
       GOTRUE_JWT_EXP: 3600
       GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
       GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
-      GOTRUE_MAILER_AUTOCONFIRM: "true"
+      # false is deliberate, NOT a leftover default: with this true, GoTrue
+      # auto-confirms + auto-logs-in signInWithOtp()'s user immediately on
+      # request, before any code is sent or verified -- confirmed via a
+      # live auth-log audit trail showing signup+login complete in the
+      # same second, with no OTP ever entered. That's also why Brevo
+      # looked broken: GoTrue never even attempted to send anything, since
+      # nothing needed confirming. False forces a real send+verify round
+      # trip. (Phone's autoconfirm is the separate GOTRUE_SMS_AUTOCONFIRM
+      # setting below and is unaffected by this.)
+      GOTRUE_MAILER_AUTOCONFIRM: "false"
       GOTRUE_SMTP_ADMIN_EMAIL: admin@subtrakr.me
       GOTRUE_SMTP_SENDER_NAME: SubTrakr
       # Brevo SMTP relay — enables password-recovery emails (previously no
