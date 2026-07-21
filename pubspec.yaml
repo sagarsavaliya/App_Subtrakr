@@ -53,7 +53,16 @@ dependencies:
   timezone: ^0.11.1
   pdf: ^3.12.0
   share_plus: ^12.0.2
-  receive_sharing_intent: ^1.9.0
+  # Pinned below 1.9.0 deliberately: that release restructured the plugin's
+  # Android build.gradle around an assumption that Flutter auto-applies the
+  # Kotlin Gradle plugin to it, which doesn't hold for this project's
+  # settings.gradle.kts setup — its own `kotlin { compilerOptions {...} } `
+  # block then fails with "Could not find method kotlin()" since the Kotlin
+  # plugin was never actually applied to that module. 1.8.1 predates that
+  # rewrite (uses the conventional apply-plugin-directly approach) and has
+  # the identical Dart API (ReceiveSharingIntent.instance.getInitialMedia
+  # /getMediaStream/reset, SharedMediaFile) — no code changes needed.
+  receive_sharing_intent: 1.8.1
 
 dev_dependencies:
   flutter_test:
