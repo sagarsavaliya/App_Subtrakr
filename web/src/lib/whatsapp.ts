@@ -47,6 +47,10 @@ export type WhatsAppDiagnostic = {
    *  when it differs from the saved whatsapp_business_account_id so the
    *  admin knows exactly what to correct. */
   templateResolvedWabaId?: string;
+  /** Why the /debug_token lookup itself didn't resolve a WABA id — surfaced
+   *  instead of silently swallowed, since a permission/token-type problem
+   *  here looks identical to "no data" otherwise. */
+  tokenDebugError?: string;
 };
 
 /** Calls Meta's own API with the saved credentials — resolves exactly what
@@ -73,7 +77,9 @@ export async function testWhatsAppConnection(): Promise<
       `https://graph.facebook.com/${GRAPH_VERSION}/debug_token?input_token=${creds.accessToken}&access_token=${creds.accessToken}`,
     );
     const body = await res.json();
-    if (res.ok) {
+    if (!res.ok) {
+      result.tokenDebugError = body?.error?.message ?? `HTTP ${res.status}`;
+    } else {
       const scopes = body?.data?.granular_scopes as
         | { scope: string; target_ids?: string[] }[]
         | undefined;
@@ -84,10 +90,14 @@ export async function testWhatsAppConnection(): Promise<
       );
       if (waba?.target_ids?.length) {
         result.tokenScopedWabaIds = waba.target_ids;
+      } else {
+        result.tokenDebugError =
+          "Token debug succeeded but listed no whatsapp_business_management/messaging scope — is this a System User token with WhatsApp assigned as an asset?";
       }
     }
-  } catch {
-    // Non-fatal — the manually-saved ID (if any) is still tried below.
+  } catch (e) {
+    result.tokenDebugError =
+      e instanceof Error ? e.message : "debug_token request failed";
   }
 
   try {

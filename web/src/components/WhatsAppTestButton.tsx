@@ -100,6 +100,11 @@ export function WhatsAppTestButton() {
                     — try saving one of these as the Business account ID.
                   </p>
                 )}
+                {result.tokenDebugError && (
+                  <p className="mt-2 text-xs text-due">
+                    Token debug lookup: {result.tokenDebugError}
+                  </p>
+                )}
               </>
             )}
           </div>
