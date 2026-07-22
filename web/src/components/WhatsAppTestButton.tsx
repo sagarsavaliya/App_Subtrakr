@@ -62,23 +62,45 @@ export function WhatsAppTestButton() {
             {!result.template.checked ? (
               <p className="text-due">{result.template.error}</p>
             ) : result.template.ok ? (
-              <ul className="space-y-1 text-ink-2">
-                {result.template.variants?.map((v) => (
-                  <li key={v.language}>
-                    <span
-                      className={
-                        v.status === "APPROVED" ? "text-glow" : "text-due"
-                      }
-                    >
-                      {v.status}
-                    </span>{" "}
-                    — language <code className="font-mono">{v.language}</code> —{" "}
-                    {v.category}
-                  </li>
-                ))}
-              </ul>
+              <>
+                <ul className="space-y-1 text-ink-2">
+                  {result.template.variants?.map((v) => (
+                    <li key={v.language}>
+                      <span
+                        className={
+                          v.status === "APPROVED" ? "text-glow" : "text-due"
+                        }
+                      >
+                        {v.status}
+                      </span>{" "}
+                      — language <code className="font-mono">{v.language}</code> —{" "}
+                      {v.category}
+                    </li>
+                  ))}
+                </ul>
+                {result.templateResolvedWabaId && (
+                  <p className="mt-2 text-xs text-due">
+                    Found via <code className="font-mono">{result.templateResolvedWabaId}</code>,
+                    not the saved Business account ID — update that field above
+                    to this value.
+                  </p>
+                )}
+              </>
             ) : (
-              <p className="text-overdue">✗ {result.template.error}</p>
+              <>
+                <p className="text-overdue">✗ {result.template.error}</p>
+                {result.tokenScopedWabaIds && result.tokenScopedWabaIds.length > 0 && (
+                  <p className="mt-2 text-xs text-ink-3">
+                    Your access token is scoped to:{" "}
+                    {result.tokenScopedWabaIds.map((id) => (
+                      <code key={id} className="mr-1 font-mono">
+                        {id}
+                      </code>
+                    ))}
+                    — try saving one of these as the Business account ID.
+                  </p>
+                )}
+              </>
             )}
           </div>
         </div>

@@ -38,6 +38,15 @@ export type WhatsAppDiagnostic = {
     variants?: { language: string; status: string; category: string }[];
     error?: string;
   };
+  /** The WABA ID(s) the access token is actually scoped to, per Meta's own
+   *  token-debug endpoint — resolves "which ID do I even put in that
+   *  field" without hunting through Business Manager, and flags a
+   *  mismatch against whatever was manually saved. */
+  tokenScopedWabaIds?: string[];
+  /** Which WABA ID the template lookup actually succeeded with — shown
+   *  when it differs from the saved whatsapp_business_account_id so the
+   *  admin knows exactly what to correct. */
+  templateResolvedWabaId?: string;
 };
 
 /** Calls Meta's own API with the saved credentials — resolves exactly what
@@ -54,6 +63,32 @@ export async function testWhatsAppConnection(): Promise<
     phoneNumber: { ok: false },
     template: { checked: false, ok: false },
   };
+
+  // Ask Meta what the token itself is actually scoped to, rather than
+  // trusting a manually-typed Business Account ID — a system-user token's
+  // granular_scopes lists the exact WABA id(s) it can manage, which is the
+  // one thing Meta's own UI doesn't surface in one obvious place.
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/${GRAPH_VERSION}/debug_token?input_token=${creds.accessToken}&access_token=${creds.accessToken}`,
+    );
+    const body = await res.json();
+    if (res.ok) {
+      const scopes = body?.data?.granular_scopes as
+        | { scope: string; target_ids?: string[] }[]
+        | undefined;
+      const waba = scopes?.find(
+        (s) =>
+          s.scope === "whatsapp_business_management" ||
+          s.scope === "whatsapp_business_messaging",
+      );
+      if (waba?.target_ids?.length) {
+        result.tokenScopedWabaIds = waba.target_ids;
+      }
+    }
+  } catch {
+    // Non-fatal — the manually-saved ID (if any) is still tried below.
+  }
 
   try {
     const res = await fetch(
@@ -74,24 +109,40 @@ export async function testWhatsAppConnection(): Promise<
     result.phoneNumber.error = e instanceof Error ? e.message : "Request failed";
   }
 
-  const businessAccountId = await getSetting("whatsapp_business_account_id");
-  if (!businessAccountId) {
+  const savedBusinessAccountId = await getSetting("whatsapp_business_account_id");
+  // Try the saved ID first (if any), then fall back to whatever WABA id(s)
+  // the token itself is actually scoped to — the saved value is very
+  // commonly the wrong node (App ID, Business Manager ID, Phone Number ID)
+  // since Meta's own UI doesn't clearly label which ID is which.
+  const candidates = Array.from(
+    new Set(
+      [savedBusinessAccountId, ...(result.tokenScopedWabaIds ?? [])].filter(
+        (id): id is string => !!id,
+      ),
+    ),
+  );
+
+  if (candidates.length === 0) {
     result.template.error =
-      "Business account ID isn't set — add it above to check the template's approval status and language.";
+      "No Business Account ID saved, and the token's debug info didn't reveal one either — add it above.";
   } else {
     result.template.checked = true;
-    try {
-      const res = await fetch(
-        `https://graph.facebook.com/${GRAPH_VERSION}/${businessAccountId}/message_templates?name=subtrakr_otp`,
-        { headers: { Authorization: `Bearer ${creds.accessToken}` } },
-      );
-      const body = await res.json();
-      if (!res.ok) {
-        result.template.error = body?.error?.message ?? `HTTP ${res.status}`;
-      } else if (!body.data?.length) {
-        result.template.error =
-          "No template named subtrakr_otp found on this Business Account ID.";
-      } else {
+    let lastError: string | undefined;
+    for (const candidateId of candidates) {
+      try {
+        const res = await fetch(
+          `https://graph.facebook.com/${GRAPH_VERSION}/${candidateId}/message_templates?name=subtrakr_otp`,
+          { headers: { Authorization: `Bearer ${creds.accessToken}` } },
+        );
+        const body = await res.json();
+        if (!res.ok) {
+          lastError = body?.error?.message ?? `HTTP ${res.status}`;
+          continue;
+        }
+        if (!body.data?.length) {
+          lastError = `No template named subtrakr_otp found on ${candidateId}.`;
+          continue;
+        }
         result.template.ok = true;
         result.template.variants = body.data.map(
           (t: { language: string; status: string; category: string }) => ({
@@ -100,9 +151,18 @@ export async function testWhatsAppConnection(): Promise<
             category: t.category,
           }),
         );
+        // Surface which ID actually worked so the saved setting can be
+        // corrected if it wasn't the same one.
+        if (candidateId !== savedBusinessAccountId) {
+          result.templateResolvedWabaId = candidateId;
+        }
+        break;
+      } catch (e) {
+        lastError = e instanceof Error ? e.message : "Request failed";
       }
-    } catch (e) {
-      result.template.error = e instanceof Error ? e.message : "Request failed";
+    }
+    if (!result.template.ok) {
+      result.template.error = lastError;
     }
   }
 
