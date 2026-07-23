@@ -73,8 +73,15 @@ export async function testWhatsAppConnection(): Promise<
   // granular_scopes lists the exact WABA id(s) it can manage, which is the
   // one thing Meta's own UI doesn't surface in one obvious place.
   try {
+    // encodeURIComponent is load-bearing: permanent System User tokens can
+    // contain "/", "+", "=" — unencoded, those corrupt the query string and
+    // Meta ends up debugging a garbled token, producing a false "no scope"
+    // result even though the same token works fine everywhere it's sent as
+    // an Authorization header instead (query strings and headers are not
+    // interchangeable without encoding).
+    const encodedToken = encodeURIComponent(creds.accessToken);
     const res = await fetch(
-      `https://graph.facebook.com/${GRAPH_VERSION}/debug_token?input_token=${creds.accessToken}&access_token=${creds.accessToken}`,
+      `https://graph.facebook.com/${GRAPH_VERSION}/debug_token?input_token=${encodedToken}&access_token=${encodedToken}`,
     );
     const body = await res.json();
     if (!res.ok) {
