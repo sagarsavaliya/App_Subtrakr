@@ -78,7 +78,13 @@ export async function sendPhoneOtp(
   }
 
   const sent = await sendOtpWhatsApp(phoneE164.replace("+", ""), code);
-  if (!sent) return { ok: false, error: "Could not send the WhatsApp message. Try again." };
+  if (!sent.ok) {
+    // The real Meta error (template/permission/language mismatch etc.) is
+    // logged here with full detail — the user only ever sees the generic
+    // message below, since the raw API error can reveal config internals.
+    console.error("sendPhoneOtp: WhatsApp send failed:", sent.error);
+    return { ok: false, error: "Could not send the WhatsApp message. Try again." };
+  }
   return { ok: true };
 }
 

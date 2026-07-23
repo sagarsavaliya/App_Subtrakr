@@ -186,13 +186,62 @@ export async function testWhatsAppConnection(): Promise<
   return result;
 }
 
+// In-memory cache for the template's actual approved language — avoids an
+// extra Graph API call on every single OTP send. Short TTL so a template
+// edit/re-approval in Meta Business Manager is picked up without a deploy.
+let cachedTemplateLanguage: { code: string; fetchedAt: number } | null = null;
+const TEMPLATE_LANGUAGE_CACHE_MS = 5 * 60_000;
+
+/** The send call previously hardcoded language "en_US" — Meta's UI gives
+ *  no language picker for this account (confirmed: always shows English,
+ *  no choice), and its actual approved code is not necessarily "en_US"
+ *  (could be plain "en"). A mismatch fails the send with an opaque Meta
+ *  error. This resolves the real approved code instead of guessing,
+ *  falling back to "en_US" only if the lookup itself is unavailable. */
+async function resolveTemplateLanguage(accessToken: string): Promise<string> {
+  const FALLBACK = "en_US";
+  if (
+    cachedTemplateLanguage &&
+    Date.now() - cachedTemplateLanguage.fetchedAt < TEMPLATE_LANGUAGE_CACHE_MS
+  ) {
+    return cachedTemplateLanguage.code;
+  }
+
+  const businessAccountId = await getSetting("whatsapp_business_account_id");
+  if (!businessAccountId) return FALLBACK;
+
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/${GRAPH_VERSION}/${businessAccountId}/message_templates?name=subtrakr_otp`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    const body = await res.json();
+    if (!res.ok) return FALLBACK;
+    const approved = (body.data as { language: string; status: string }[] | undefined)?.find(
+      (t) => t.status === "APPROVED",
+    );
+    if (!approved) return FALLBACK;
+    cachedTemplateLanguage = { code: approved.language, fetchedAt: Date.now() };
+    return approved.language;
+  } catch {
+    return FALLBACK;
+  }
+}
+
 /** Sends the subtrakr_otp Authentication template. [to] is E.164 without
  *  the leading "+" (Graph API convention). The code must appear in both
  *  the body parameter and the copy-code button's parameter — Meta's
- *  authentication template format requires it in both places. */
-export async function sendOtpWhatsApp(to: string, code: string): Promise<boolean> {
+ *  authentication template format requires it in both places. Returns the
+ *  real Meta error text on failure so callers can log it with enough
+ *  detail to actually debug, instead of a bare boolean. */
+export async function sendOtpWhatsApp(
+  to: string,
+  code: string,
+): Promise<{ ok: boolean; error?: string }> {
   const creds = await whatsappCreds();
-  if (!creds) return false;
+  if (!creds) return { ok: false, error: "WhatsApp credentials not configured." };
+
+  const language = await resolveTemplateLanguage(creds.accessToken);
 
   try {
     const res = await fetch(
@@ -210,7 +259,7 @@ export async function sendOtpWhatsApp(to: string, code: string): Promise<boolean
           type: "template",
           template: {
             name: "subtrakr_otp",
-            language: { code: "en_US" },
+            language: { code: language },
             components: [
               { type: "body", parameters: [{ type: "text", text: code }] },
               {
@@ -225,12 +274,19 @@ export async function sendOtpWhatsApp(to: string, code: string): Promise<boolean
       },
     );
     if (!res.ok) {
-      console.error("WhatsApp OTP send failed:", res.status, await res.text());
-      return false;
+      const bodyText = await res.text();
+      console.error("WhatsApp OTP send failed:", res.status, bodyText);
+      let error = `HTTP ${res.status}`;
+      try {
+        error = JSON.parse(bodyText)?.error?.message ?? error;
+      } catch {
+        // Non-JSON body — the raw log line above still has the detail.
+      }
+      return { ok: false, error };
     }
-    return true;
+    return { ok: true };
   } catch (e) {
     console.error("WhatsApp OTP send threw:", e);
-    return false;
+    return { ok: false, error: e instanceof Error ? e.message : "Request failed" };
   }
 }
