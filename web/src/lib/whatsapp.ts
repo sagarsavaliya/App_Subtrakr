@@ -194,12 +194,13 @@ const TEMPLATE_LANGUAGE_CACHE_MS = 5 * 60_000;
 
 /** The send call previously hardcoded language "en_US" — Meta's UI gives
  *  no language picker for this account (confirmed: always shows English,
- *  no choice), and its actual approved code is not necessarily "en_US"
- *  (could be plain "en"). A mismatch fails the send with an opaque Meta
- *  error. This resolves the real approved code instead of guessing,
- *  falling back to "en_US" only if the lookup itself is unavailable. */
+ *  no choice), and the template's actual approved code is "en", not
+ *  "en_US" (confirmed against the live template). A mismatch fails the
+ *  send with an opaque Meta error. This resolves the real approved code
+ *  instead of guessing, falling back to the confirmed "en" only if the
+ *  lookup itself is unavailable. */
 async function resolveTemplateLanguage(accessToken: string): Promise<string> {
-  const FALLBACK = "en_US";
+  const FALLBACK = "en";
   if (
     cachedTemplateLanguage &&
     Date.now() - cachedTemplateLanguage.fetchedAt < TEMPLATE_LANGUAGE_CACHE_MS
