@@ -1,18 +1,19 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { addSubscription } from "../actions";
+import { CustomSelect } from "@/components/CustomSelect";
 
 const CATEGORIES = [
-  "entertainment",
-  "devTools",
-  "telecom",
-  "cloud",
-  "saas",
-  "utility",
-  "storage",
-  "security",
-  "productivity",
-  "other",
+  ["entertainment", "Entertainment"],
+  ["devTools", "Dev Tools"],
+  ["telecom", "Telecom"],
+  ["cloud", "Cloud"],
+  ["saas", "SaaS"],
+  ["utility", "Utility"],
+  ["storage", "Storage"],
+  ["security", "Security"],
+  ["productivity", "Productivity"],
+  ["other", "Other"],
 ];
 
 const CYCLES = [
@@ -82,13 +83,11 @@ export default async function NewSubscriptionPage({
             <label className="mb-1 block text-xs text-ink-2">
               Billing cycle
             </label>
-            <select name="billing_cycle" defaultValue="monthly" className={inputClass}>
-              {CYCLES.map(([v, l]) => (
-                <option key={v} value={v} className="bg-elevated">
-                  {l}
-                </option>
-              ))}
-            </select>
+            <CustomSelect
+              name="billing_cycle"
+              defaultValue="monthly"
+              options={CYCLES.map(([value, label]) => ({ value, label }))}
+            />
           </div>
         </div>
 
@@ -107,29 +106,21 @@ export default async function NewSubscriptionPage({
           </div>
           <div>
             <label className="mb-1 block text-xs text-ink-2">Category</label>
-            <select name="category" defaultValue="other" className={inputClass}>
-              {CATEGORIES.map((c) => (
-                <option key={c} value={c} className="bg-elevated">
-                  {c}
-                </option>
-              ))}
-            </select>
+            <CustomSelect
+              name="category"
+              defaultValue="other"
+              options={CATEGORIES.map(([value, label]) => ({ value, label }))}
+            />
           </div>
         </div>
 
         <div>
           <label className="mb-1 block text-xs text-ink-2">Entity</label>
-          <select
+          <CustomSelect
             name="entity_id"
             defaultValue={entities?.[0]?.id}
-            className={inputClass}
-          >
-            {entities?.map((e) => (
-              <option key={e.id} value={e.id} className="bg-elevated">
-                {e.name}
-              </option>
-            ))}
-          </select>
+            options={(entities ?? []).map((e) => ({ value: e.id, label: e.name }))}
+          />
         </div>
 
         <label className="flex items-center gap-3 text-sm text-ink-2">
