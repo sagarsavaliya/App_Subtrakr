@@ -17,6 +17,7 @@ import '../../providers/subscription_provider.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/aurora_background.dart';
 import '../../widgets/common/glass_surface.dart';
+import '../../widgets/common/segmented_code_field.dart';
 
 /// PRD F1 — mobile number + 6-digit PIN is the primary credential; email +
 /// PIN is the secondary method, using the same shape (verify identity via
@@ -40,11 +41,15 @@ class LoginScreen extends ConsumerStatefulWidget {
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
-  final _pinController = TextEditingController();
-  final _confirmPinController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _otpController = TextEditingController();
+
+  // Plain String state rather than TextEditingControllers — these three are
+  // rendered via SegmentedCodeField, which is backed by its own internal
+  // controller, not a visible TextField bound to one of these directly.
+  String _pin = '';
+  String _confirmPin = '';
+  String _otp = '';
 
   bool _isSignUp = false;
   bool _useEmail = false;
@@ -66,11 +71,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _cooldownTimer?.cancel();
     _nameController.dispose();
     _phoneController.dispose();
-    _pinController.dispose();
-    _confirmPinController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
-    _otpController.dispose();
     super.dispose();
   }
 
@@ -98,9 +100,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _forgotMode = false;
       _resetSent = false;
       _cooldownSeconds = 0;
-      _otpController.clear();
-      _pinController.clear();
-      _confirmPinController.clear();
+      _otp = '';
+      _pin = '';
+      _confirmPin = '';
       _error = null;
     });
   }
@@ -209,7 +211,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
 
     if (!_isSignUp) {
-      final pin = _pinController.text;
+      final pin = _pin;
       if (pin.length != 6) {
         setState(() => _error = 'Your PIN must be exactly 6 digits.');
         return;
@@ -256,7 +258,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _verifyOtp() async {
-    if (_otpController.text.length != 6) {
+    if (_otp.length != 6) {
       setState(() => _error = 'Enter the 6-digit code.');
       return;
     }
@@ -268,7 +270,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (_useEmail) {
       final error = await AuthService.verifyEmailOtp(
         email: _emailController.text.trim(),
-        otp: _otpController.text,
+        otp: _otp,
       );
       if (!mounted) return;
       setState(() {
@@ -284,7 +286,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     final error = await AuthService.verifyPhoneOtp(
       phone: _phoneController.text.trim(),
-      otp: _otpController.text,
+      otp: _otp,
     );
     if (!mounted) return;
     setState(() {
@@ -331,12 +333,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _setPinAndFinish() async {
-    final pin = _pinController.text;
+    final pin = _pin;
     if (pin.length != 6) {
       setState(() => _error = 'Your PIN must be exactly 6 digits.');
       return;
     }
-    if (pin != _confirmPinController.text) {
+    if (pin != _confirmPin) {
       setState(() => _error = 'PINs don\'t match.');
       return;
     }
@@ -579,18 +581,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ],
           ),
           if (!_isSignUp) ...[
-            const SizedBox(height: 12),
-            _AuthField(
-              controller: _pinController,
-              hint: '6-digit PIN',
-              icon: Icons.pin_outlined,
+            const SizedBox(height: 16),
+            SegmentedCodeField(
+              value: _pin,
+              onChanged: (v) => setState(() => _pin = v),
+              onCompleted: (_) => _submit(),
               obscure: true,
-              keyboardType: TextInputType.number,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(6),
-              ],
-              onSubmitted: (_) => _submit(),
+              enabled: !_loading,
             ),
           ],
           if (_isSignUp) ...[
@@ -633,17 +630,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               : 'We sent a 6-digit code over WhatsApp to +91 ${_phoneController.text}',
           style: AppTextStyles.body,
         ),
-        const SizedBox(height: 14),
-        _AuthField(
-          controller: _otpController,
-          hint: '6-digit code',
-          icon: Icons.sms_outlined,
-          keyboardType: TextInputType.number,
-          inputFormatters: [
-            FilteringTextInputFormatter.digitsOnly,
-            LengthLimitingTextInputFormatter(6),
-          ],
-          onSubmitted: (_) => _verifyOtp(),
+        const SizedBox(height: 18),
+        SegmentedCodeField(
+          value: _otp,
+          onChanged: (v) => setState(() => _otp = v),
+          onCompleted: (_) => _verifyOtp(),
+          autoFocus: true,
+          enabled: !_loading,
         ),
         if (_error != null) ...[
           const SizedBox(height: 14),
@@ -694,30 +687,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           '${_useEmail ? 'Email' : 'Number'} verified. Choose the 6-digit PIN you\'ll use to sign in from now on.',
           style: AppTextStyles.body,
         ),
-        const SizedBox(height: 14),
-        _AuthField(
-          controller: _pinController,
-          hint: '6-digit PIN',
-          icon: Icons.pin_outlined,
+        const SizedBox(height: 18),
+        Text('6-digit PIN', textAlign: TextAlign.center, style: AppTextStyles.hint),
+        const SizedBox(height: 8),
+        SegmentedCodeField(
+          value: _pin,
+          onChanged: (v) => setState(() => _pin = v),
           obscure: true,
-          keyboardType: TextInputType.number,
-          inputFormatters: [
-            FilteringTextInputFormatter.digitsOnly,
-            LengthLimitingTextInputFormatter(6),
-          ],
+          autoFocus: true,
+          enabled: !_loading,
         ),
-        const SizedBox(height: 12),
-        _AuthField(
-          controller: _confirmPinController,
-          hint: 'Confirm PIN',
-          icon: Icons.pin_outlined,
+        const SizedBox(height: 16),
+        Text('Confirm PIN', textAlign: TextAlign.center, style: AppTextStyles.hint),
+        const SizedBox(height: 8),
+        SegmentedCodeField(
+          value: _confirmPin,
+          onChanged: (v) => setState(() => _confirmPin = v),
+          onCompleted: (_) => _setPinAndFinish(),
           obscure: true,
-          keyboardType: TextInputType.number,
-          inputFormatters: [
-            FilteringTextInputFormatter.digitsOnly,
-            LengthLimitingTextInputFormatter(6),
-          ],
-          onSubmitted: (_) => _setPinAndFinish(),
+          enabled: !_loading,
         ),
         if (_error != null) ...[
           const SizedBox(height: 14),

@@ -1,9 +1,10 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { SegmentedCodeInput } from "@/components/SegmentedCodeInput";
 
 /** PRD F1 — mobile number + 6-digit PIN is the primary credential; email +
  *  PIN is the secondary method, using the same shape (verify identity via
@@ -57,6 +58,13 @@ function LoginForm() {
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const [forgotMode, setForgotMode] = useState(false);
   const [resetSent, setResetSent] = useState(false);
+
+  // Auto-submitted from SegmentedCodeInput's onComplete once every box is
+  // filled, so requestSubmit() reuses the exact same validated submit path
+  // instead of duplicating any logic.
+  const detailsFormRef = useRef<HTMLFormElement>(null);
+  const otpFormRef = useRef<HTMLFormElement>(null);
+  const pinFormRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     if (cooldownSeconds <= 0) return;
@@ -351,22 +359,23 @@ function LoginForm() {
             </form>
           )
         ) : isSignUp && step === "otp" ? (
-          <form onSubmit={verifyOtp} className="glass rounded-3xl p-6">
-            <p className="mb-4 text-sm text-ink-2">
+          <form ref={otpFormRef} onSubmit={verifyOtp} className="glass rounded-3xl p-6">
+            <p className="mb-5 text-center text-sm text-ink-2">
               {useEmail
                 ? `We sent a 6-digit code to ${email}`
                 : `We sent a 6-digit code over WhatsApp to +91 ${phone}`}
             </p>
-            <input
-              type="text"
-              inputMode="numeric"
-              placeholder="6-digit code"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              required
-              className={inputClass}
-            />
-            {error && <p className="mb-4 text-sm text-overdue">{error}</p>}
+            <div className="mb-5">
+              <SegmentedCodeInput
+                value={otp}
+                onChange={setOtp}
+                onComplete={() => otpFormRef.current?.requestSubmit()}
+                autoFocus
+                disabled={loading}
+                label="Verification code"
+              />
+            </div>
+            {error && <p className="mb-4 text-center text-sm text-overdue">{error}</p>}
             <button
               type="submit"
               disabled={loading}
@@ -393,30 +402,34 @@ function LoginForm() {
             </div>
           </form>
         ) : isSignUp && step === "pin" ? (
-          <form onSubmit={setPinAndFinish} className="glass rounded-3xl p-6">
-            <p className="mb-4 text-sm text-ink-2">
+          <form ref={pinFormRef} onSubmit={setPinAndFinish} className="glass rounded-3xl p-6">
+            <p className="mb-5 text-center text-sm text-ink-2">
               {useEmail ? "Email" : "Number"} verified. Choose the 6-digit PIN
               you&apos;ll use to sign in from now on.
             </p>
-            <input
-              type="password"
-              inputMode="numeric"
-              placeholder="6-digit PIN"
-              value={pin}
-              onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              required
-              className={inputClass}
-            />
-            <input
-              type="password"
-              inputMode="numeric"
-              placeholder="Confirm PIN"
-              value={confirmPin}
-              onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              required
-              className={inputClass}
-            />
-            {error && <p className="mb-4 text-sm text-overdue">{error}</p>}
+            <p className="mb-2 text-center text-xs text-ink-3">6-digit PIN</p>
+            <div className="mb-4">
+              <SegmentedCodeInput
+                value={pin}
+                onChange={setPin}
+                mask
+                autoFocus
+                disabled={loading}
+                label="New PIN"
+              />
+            </div>
+            <p className="mb-2 text-center text-xs text-ink-3">Confirm PIN</p>
+            <div className="mb-5">
+              <SegmentedCodeInput
+                value={confirmPin}
+                onChange={setConfirmPin}
+                onComplete={() => pinFormRef.current?.requestSubmit()}
+                mask
+                disabled={loading}
+                label="Confirm PIN"
+              />
+            </div>
+            {error && <p className="mb-4 text-center text-sm text-overdue">{error}</p>}
             <button
               type="submit"
               disabled={loading}
@@ -426,7 +439,7 @@ function LoginForm() {
             </button>
           </form>
         ) : (
-          <form onSubmit={submit} className="glass rounded-3xl p-6">
+          <form ref={detailsFormRef} onSubmit={submit} className="glass rounded-3xl p-6">
             {isSignUp && (
               <input
                 type="text"
@@ -495,17 +508,16 @@ function LoginForm() {
                   />
                 </div>
                 {!isSignUp && (
-                  <input
-                    type="password"
-                    inputMode="numeric"
-                    placeholder="6-digit PIN"
-                    value={pin}
-                    onChange={(e) =>
-                      setPin(e.target.value.replace(/\D/g, "").slice(0, 6))
-                    }
-                    required
-                    className={inputClass}
-                  />
+                  <div className="mb-3">
+                    <SegmentedCodeInput
+                      value={pin}
+                      onChange={setPin}
+                      onComplete={() => detailsFormRef.current?.requestSubmit()}
+                      mask
+                      disabled={loading}
+                      label="PIN"
+                    />
+                  </div>
                 )}
                 {isSignUp && (
                   <p className="mb-3 text-xs text-ink-3">
