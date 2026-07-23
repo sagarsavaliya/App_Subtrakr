@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { userExistsByEmail } from "@/lib/userLookup";
 import { corsJson, corsPreflight } from "@/lib/cors";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -17,12 +17,7 @@ export async function POST(request: Request) {
     return corsJson({ error: "Enter a valid email address." }, { status: 400 });
   }
 
-  const db = createAdminClient();
-  const { data } = await db.auth.admin.listUsers({ page: 1, perPage: 1000 });
-  const exists = data?.users?.some(
-    (u) => u.email?.toLowerCase() === email.toLowerCase(),
-  );
-  if (exists) {
+  if (await userExistsByEmail(email)) {
     return corsJson(
       { error: "This email already has an account — sign in instead." },
       { status: 409 },

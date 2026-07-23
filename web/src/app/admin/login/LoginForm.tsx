@@ -36,7 +36,7 @@ export default function LoginForm() {
     setError(null);
     setLoading(true);
     const { error } = await createClient().auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: `${window.location.origin}/reset-password?admin=1`,
     });
     setLoading(false);
     if (error) {

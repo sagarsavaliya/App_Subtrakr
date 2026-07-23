@@ -13,6 +13,11 @@ import { createClient } from "@/lib/supabase/client";
 function ResetPasswordForm() {
   const router = useRouter();
   const search = useSearchParams();
+  // Set by the admin forgot-password flow's redirectTo — routes the
+  // already-authenticated user (the recovery link itself establishes the
+  // session) straight to the right destination instead of bouncing them
+  // through a login page for credentials they no longer need to re-enter.
+  const isAdmin = search.get("admin") === "1";
   const [ready, setReady] = useState(false);
   const [linkInvalid, setLinkInvalid] = useState(false);
   const [password, setPassword] = useState("");
@@ -76,10 +81,10 @@ function ResetPasswordForm() {
           Your password has been updated.
         </p>
         <button
-          onClick={() => router.replace("/login")}
+          onClick={() => router.replace(isAdmin ? "/admin" : "/app")}
           className="brand-gradient w-full rounded-xl py-3 text-sm font-bold text-[#08201a]"
         >
-          Sign in
+          Continue
         </button>
       </div>
     );
@@ -92,7 +97,7 @@ function ResetPasswordForm() {
           This reset link is invalid or has expired.
         </p>
         <Link
-          href="/login"
+          href={isAdmin ? "/admin/login" : "/login"}
           className="glass block w-full rounded-xl py-3 text-sm text-ink hover:border-glow/30"
         >
           Back to sign in

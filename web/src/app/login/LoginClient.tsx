@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -49,9 +49,22 @@ function LoginForm() {
 
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [resendCooldown, setResendCooldown] = useState(false);
+  // Seconds remaining before another phone OTP can be requested — driven by
+  // the server's own computed remaining time (the cooldown is keyed on the
+  // phone number across every client, not just this tab), so it's accurate
+  // even when the block came from a request made moments ago on another
+  // device. 0 means no cooldown active.
+  const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const [forgotMode, setForgotMode] = useState(false);
   const [resetSent, setResetSent] = useState(false);
+
+  useEffect(() => {
+    if (cooldownSeconds <= 0) return;
+    const id = setInterval(() => {
+      setCooldownSeconds((s) => Math.max(0, s - 1));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [cooldownSeconds]);
 
   const inputClass =
     "glass mb-3 w-full rounded-xl px-4 py-3 text-sm outline-none placeholder:text-ink-3 focus:border-glow/40";
@@ -69,6 +82,7 @@ function LoginForm() {
     setForgotMode(false);
     setResetSent(false);
     setError(null);
+    setCooldownSeconds(0);
   }
 
   async function submitForgot(e: React.FormEvent) {
@@ -169,13 +183,15 @@ function LoginForm() {
     setLoading(false);
     if (!res.ok) {
       setError(body.error ?? "Could not send the code. Try again.");
+      if (body.retryAfterSeconds) setCooldownSeconds(body.retryAfterSeconds);
       return;
     }
+    setCooldownSeconds(60);
     setStep("otp");
   }
 
   async function resendOtp() {
-    if (resendCooldown) return;
+    if (cooldownSeconds > 0) return;
     setError(null);
     setLoading(true);
     if (useEmail) {
@@ -188,8 +204,7 @@ function LoginForm() {
         setError(error.message);
         return;
       }
-      setResendCooldown(true);
-      setTimeout(() => setResendCooldown(false), 60_000);
+      setCooldownSeconds(60);
       return;
     }
     const res = await fetch("/api/auth/send-otp", {
@@ -201,10 +216,10 @@ function LoginForm() {
     setLoading(false);
     if (!res.ok) {
       setError(body.error ?? "Could not send the code. Try again.");
+      if (body.retryAfterSeconds) setCooldownSeconds(body.retryAfterSeconds);
       return;
     }
-    setResendCooldown(true);
-    setTimeout(() => setResendCooldown(false), 60_000);
+    setCooldownSeconds(60);
   }
 
   async function verifyOtp(e: React.FormEvent) {
@@ -370,10 +385,10 @@ function LoginForm() {
               <button
                 type="button"
                 onClick={resendOtp}
-                disabled={resendCooldown || loading}
+                disabled={cooldownSeconds > 0 || loading}
                 className="text-glow hover:underline disabled:cursor-not-allowed disabled:text-ink-3 disabled:no-underline"
               >
-                {resendCooldown ? "Code sent — wait a moment" : "Resend code"}
+                {cooldownSeconds > 0 ? `Resend in ${cooldownSeconds}s` : "Resend code"}
               </button>
             </div>
           </form>
@@ -504,14 +519,16 @@ function LoginForm() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || cooldownSeconds > 0}
               className="brand-gradient glow-shadow w-full rounded-xl py-3 text-sm font-bold text-[#08201a] transition hover:opacity-90 disabled:opacity-50"
             >
               {loading
                 ? "Please wait…"
-                : isSignUp
-                  ? "Send verification code"
-                  : "Sign in"}
+                : cooldownSeconds > 0
+                  ? `Try again in ${cooldownSeconds}s`
+                  : isSignUp
+                    ? "Send verification code"
+                    : "Sign in"}
             </button>
           </form>
         )}

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -50,11 +52,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _forgotMode = false;
   bool _resetSent = false;
   bool _loading = false;
-  bool _resendCooldown = false;
+  // Seconds remaining before another phone OTP can be requested — the
+  // cooldown is keyed on the phone number across every client (this app,
+  // the web app), so retryAfterSeconds from the server drives an accurate
+  // countdown even when the block came from a request made moments ago on
+  // a different device. 0 means no cooldown active.
+  int _cooldownSeconds = 0;
+  Timer? _cooldownTimer;
   String? _error;
 
   @override
   void dispose() {
+    _cooldownTimer?.cancel();
     _nameController.dispose();
     _phoneController.dispose();
     _pinController.dispose();
@@ -65,12 +74,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.dispose();
   }
 
+  void _startCooldown(int seconds) {
+    _cooldownTimer?.cancel();
+    setState(() => _cooldownSeconds = seconds);
+    _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_cooldownSeconds <= 1) {
+        timer.cancel();
+        setState(() => _cooldownSeconds = 0);
+      } else {
+        setState(() => _cooldownSeconds--);
+      }
+    });
+  }
+
   void _resetWizard() {
+    _cooldownTimer?.cancel();
     setState(() {
       _step = _WizardStep.details;
       _forgotMode = false;
       _resetSent = false;
-      _resendCooldown = false;
+      _cooldownSeconds = 0;
       _otpController.clear();
       _pinController.clear();
       _confirmPinController.clear();
@@ -211,16 +238,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _loading = true;
       _error = null;
     });
-    final error = await AuthService.sendPhoneOtp(phone);
+    final result = await AuthService.sendPhoneOtp(phone);
     if (!mounted) return;
     setState(() {
       _loading = false;
-      if (error != null) {
-        _error = error;
+      if (result.error != null) {
+        _error = result.error;
       } else {
         _step = _WizardStep.otp;
       }
     });
+    if (result.error == null) {
+      _startCooldown(60);
+    } else if (result.retryAfterSeconds != null) {
+      _startCooldown(result.retryAfterSeconds!);
+    }
   }
 
   Future<void> _verifyOtp() async {
@@ -266,27 +298,35 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _resendOtp() async {
-    if (_resendCooldown) return;
+    if (_cooldownSeconds > 0) return;
     setState(() {
       _loading = true;
       _error = null;
     });
-    final error = _useEmail
-        ? await AuthService.sendEmailOtp(
-            name: _nameController.text.trim(),
-            email: _emailController.text.trim(),
-          )
-        : await AuthService.sendPhoneOtp(_phoneController.text.trim());
+    if (_useEmail) {
+      final error = await AuthService.sendEmailOtp(
+        name: _nameController.text.trim(),
+        email: _emailController.text.trim(),
+      );
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = error;
+      });
+      if (error == null) _startCooldown(60);
+      return;
+    }
+
+    final result = await AuthService.sendPhoneOtp(_phoneController.text.trim());
     if (!mounted) return;
     setState(() {
       _loading = false;
-      _error = error;
+      _error = result.error;
     });
-    if (error == null) {
-      setState(() => _resendCooldown = true);
-      Future.delayed(const Duration(seconds: 60), () {
-        if (mounted) setState(() => _resendCooldown = false);
-      });
+    if (result.error == null) {
+      _startCooldown(60);
+    } else if (result.retryAfterSeconds != null) {
+      _startCooldown(result.retryAfterSeconds!);
     }
   }
 
@@ -572,8 +612,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _loading
             ? const _Spinner()
             : GradientButton(
-                label: _isSignUp ? 'Send verification code' : 'Sign in',
-                onPressed: _submit,
+                label: _cooldownSeconds > 0
+                    ? 'Try again in ${_cooldownSeconds}s'
+                    : _isSignUp
+                        ? 'Send verification code'
+                        : 'Sign in',
+                onPressed: _cooldownSeconds > 0 ? null : _submit,
               ),
       ],
     );
@@ -624,11 +668,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ),
             ),
             TextButton(
-              onPressed: _loading || _resendCooldown ? null : _resendOtp,
+              onPressed: _loading || _cooldownSeconds > 0 ? null : _resendOtp,
               child: Text(
-                _resendCooldown ? 'Code sent — wait a moment' : 'Resend code',
+                _cooldownSeconds > 0
+                    ? 'Resend in ${_cooldownSeconds}s'
+                    : 'Resend code',
                 style: AppTextStyles.hint.copyWith(
-                  color: _resendCooldown
+                  color: _cooldownSeconds > 0
                       ? AppColors.textHint
                       : AppColors.accentGlow,
                 ),

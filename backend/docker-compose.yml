@@ -74,9 +74,14 @@ services:
       GOTRUE_MAILER_SUBJECTS_MAGIC_LINK: "Your SubTrakr verification code"
       GOTRUE_EXTERNAL_GOOGLE_ENABLED: "false"
       # Mobile number + 6-digit PIN is the primary credential (PRD F1).
-      # SMS_AUTOCONFIRM stays on until a real SMS gateway (MSG91/Twilio —
-      # needs an account + India DLT registration) is wired in; flipping it
-      # off then makes signup require a real OTP via the send-sms hook.
+      # Verification is WhatsApp-only by design (no SMS gateway, ever —
+      # avoids India DLT registration and SMS compliance overhead) via the
+      # app's own custom phone_otp_challenges system (web/src/lib/
+      # otpChallenge.ts + whatsapp.ts). GoTrue's native phone/SMS OTP is
+      # never used at all, so SMS_AUTOCONFIRM stays permanently "true" —
+      # signUp({phone, password}) in complete-signup/route.ts only runs
+      # AFTER our own WhatsApp verification already passed, so GoTrue
+      # auto-confirming it immediately is correct, not a gap.
       GOTRUE_EXTERNAL_PHONE_ENABLED: "true"
       GOTRUE_SMS_AUTOCONFIRM: "true"
       GOTRUE_PASSWORD_MIN_LENGTH: "6"

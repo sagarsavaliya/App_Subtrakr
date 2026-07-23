@@ -26,7 +26,7 @@ function randomCode(): string {
 
 export async function sendPhoneOtp(
   phoneE164: string,
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; error?: string; retryAfterSeconds?: number }> {
   if (!(await whatsappConfigured())) {
     return {
       ok: false,
@@ -43,8 +43,20 @@ export async function sendPhoneOtp(
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (recent && Date.now() - new Date(recent.created_at).getTime() < RESEND_COOLDOWN_MS) {
-    return { ok: false, error: "Please wait a moment before requesting another code." };
+  if (recent) {
+    // The cooldown is keyed on the phone number only, shared across every
+    // client (web, Android) hitting this same table — a request sent from
+    // a different device/tab moments ago blocks this one too, correctly.
+    // retryAfterSeconds lets the UI show an actual countdown instead of a
+    // bare error, whether this is the very first send or a resend.
+    const elapsedMs = Date.now() - new Date(recent.created_at).getTime();
+    if (elapsedMs < RESEND_COOLDOWN_MS) {
+      return {
+        ok: false,
+        error: "Please wait a moment before requesting another code.",
+        retryAfterSeconds: Math.ceil((RESEND_COOLDOWN_MS - elapsedMs) / 1000),
+      };
+    }
   }
 
   const code = randomCode();

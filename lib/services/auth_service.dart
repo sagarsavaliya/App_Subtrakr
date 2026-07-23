@@ -84,7 +84,15 @@ class AuthService {
   /// custom challenge system (`/api/auth/send-otp`) — GoTrue has no native
   /// WhatsApp channel, so unlike email this can't be a direct GoTrue call.
   /// That route also does the "already registered" check server-side.
-  static Future<String?> sendPhoneOtp(String phone) async {
+  ///
+  /// The cooldown is keyed on the phone number across every client (this
+  /// app, the web app), not just this device — retryAfterSeconds is the
+  /// server's own computed remaining time, so the UI can show an accurate
+  /// countdown instead of a bare "wait a moment" error even when the block
+  /// came from a request made moments ago somewhere else.
+  static Future<({String? error, int? retryAfterSeconds})> sendPhoneOtp(
+    String phone,
+  ) async {
     try {
       final res = await http
           .post(
@@ -93,12 +101,18 @@ class AuthService {
             body: jsonEncode({'phone': normalizePhone(phone)}),
           )
           .timeout(const Duration(seconds: 15));
-      if (res.statusCode == 200) return null;
+      if (res.statusCode == 200) return (error: null, retryAfterSeconds: null);
       final body = jsonDecode(res.body) as Map<String, dynamic>;
-      return body['error'] as String? ?? 'Could not send the code.';
+      return (
+        error: body['error'] as String? ?? 'Could not send the code.',
+        retryAfterSeconds: body['retryAfterSeconds'] as int?,
+      );
     } catch (e) {
       debugPrint('AuthService.sendPhoneOtp failed: $e');
-      return 'Could not send the code. Check your connection.';
+      return (
+        error: 'Could not send the code. Check your connection.',
+        retryAfterSeconds: null,
+      );
     }
   }
 
