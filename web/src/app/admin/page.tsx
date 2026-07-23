@@ -44,7 +44,10 @@ export default async function AdminOverviewPage() {
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
         {stats.map(([label, value]) => (
-          <div key={label} className="glass rounded-2xl p-4">
+          <div
+            key={label}
+            className="glass rounded-2xl p-4 transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,0,0,0.3)]"
+          >
             <p className="font-mono text-xl font-semibold">{value}</p>
             <p className="mt-1 text-xs text-ink-2">{label}</p>
           </div>

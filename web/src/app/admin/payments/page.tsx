@@ -43,7 +43,10 @@ export default async function PaymentsPage() {
             </thead>
             <tbody>
               {transactions.map((t) => (
-                <tr key={t.id} className="border-b border-white/5">
+                <tr
+                  key={t.id}
+                  className="border-b border-white/5 transition-colors duration-150 hover:bg-white/[0.03]"
+                >
                   <td className="px-4 py-3 text-ink-2">
                     {formatDate(t.created_at)}
                   </td>

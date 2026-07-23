@@ -111,7 +111,7 @@ export default async function AdminSettingsPage() {
               />
             </div>
           </div>
-          <button className="brand-gradient mt-5 rounded-lg px-5 py-2 text-sm font-bold text-[#08201a] transition hover:opacity-90">
+          <button className="brand-gradient mt-5 cursor-pointer rounded-lg px-5 py-2 text-sm font-bold text-[#08201a] transition-transform duration-150 hover:scale-105 hover:opacity-90 active:scale-95">
             Save settings
           </button>
         </form>
@@ -211,7 +211,7 @@ export default async function AdminSettingsPage() {
               />
             </div>
           </div>
-          <button className="brand-gradient mt-5 rounded-lg px-5 py-2 text-sm font-bold text-[#08201a] transition hover:opacity-90">
+          <button className="brand-gradient mt-5 cursor-pointer rounded-lg px-5 py-2 text-sm font-bold text-[#08201a] transition-transform duration-150 hover:scale-105 hover:opacity-90 active:scale-95">
             Save settings
           </button>
         </form>

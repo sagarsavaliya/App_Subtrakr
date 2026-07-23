@@ -84,3 +84,9 @@ body {
 .glow-shadow {
   box-shadow: 0 8px 32px rgba(46, 196, 160, 0.35);
 }
+/* Softer variant for large surfaces (hero panels) — glow-shadow's intensity
+   is tuned for small CTA buttons; at hero-panel size the same alpha reads
+   as a heavy, distracting halo rather than a subtle lift. */
+.hero-glow {
+  box-shadow: 0 12px 48px rgba(46, 196, 160, 0.14);
+}

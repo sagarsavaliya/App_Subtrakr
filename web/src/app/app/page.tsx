@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { formatINR, formatDate, monthlyEquivalent } from "@/lib/format";
+import { formatINR, monthlyEquivalent } from "@/lib/format";
 import { deleteSubscription, markPaid } from "./actions";
+import { SubscriptionRow } from "@/components/SubscriptionRow";
 
 type Sub = {
   id: string;
@@ -56,7 +57,7 @@ export default async function DashboardPage({
 
   return (
     <div>
-      <section className="glass-strong glow-shadow rounded-3xl border-glow/20 p-7">
+      <section className="glass-strong hero-glow rounded-3xl border-glow/20 p-7">
         <p className="text-xs font-semibold uppercase tracking-widest text-ink-2">
           Total monthly spend
         </p>
@@ -83,7 +84,7 @@ export default async function DashboardPage({
       <div className="mt-6 flex flex-wrap items-center gap-2">
         <Link
           href="/app"
-          className={`rounded-full px-4 py-1.5 text-sm ${!entityFilter ? "brand-gradient font-semibold text-[#08201a]" : "glass text-ink-2"}`}
+          className={`rounded-full px-4 py-1.5 text-sm transition-transform duration-150 hover:scale-105 active:scale-95 ${!entityFilter ? "brand-gradient font-semibold text-[#08201a]" : "glass text-ink-2"}`}
         >
           All
         </Link>
@@ -91,7 +92,7 @@ export default async function DashboardPage({
           <Link
             key={e.id}
             href={`/app?entity=${e.id}`}
-            className={`rounded-full px-4 py-1.5 text-sm ${entityFilter === e.id ? "brand-gradient font-semibold text-[#08201a]" : "glass text-ink-2"}`}
+            className={`rounded-full px-4 py-1.5 text-sm transition-transform duration-150 hover:scale-105 active:scale-95 ${entityFilter === e.id ? "brand-gradient font-semibold text-[#08201a]" : "glass text-ink-2"}`}
           >
             {e.name}
           </Link>
@@ -99,7 +100,7 @@ export default async function DashboardPage({
         <div className="flex-1" />
         <Link
           href="/app/new"
-          className="brand-gradient glow-shadow rounded-full px-5 py-2 text-sm font-bold text-[#08201a] transition hover:opacity-90"
+          className="brand-gradient glow-shadow rounded-full px-5 py-2 text-sm font-bold text-[#08201a] transition-transform duration-150 hover:scale-105 active:scale-95"
         >
           + Add subscription
         </Link>
@@ -121,67 +122,23 @@ export default async function DashboardPage({
           </div>
         ) : (
           <ul className="space-y-3">
-            {shown.map((s) => {
-              const overdue =
-                new Date(s.next_due_date) < now && s.status === "active";
-              return (
-                <li
-                  key={s.id}
-                  className="glass flex items-center gap-4 rounded-2xl p-4"
-                >
-                  <div className="brand-gradient flex h-11 w-11 shrink-0 items-center justify-center rounded-xl font-bold text-[#08201a]">
-                    {s.name.slice(0, 2).toUpperCase()}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium">{s.name}</p>
-                    <p className="text-xs text-ink-2">
-                      {entityName(s.entity_id)} ·{" "}
-                      <span
-                        className={
-                          overdue
-                            ? "text-overdue"
-                            : s.status === "active"
-                              ? "text-ink-2"
-                              : "text-ink-3"
-                        }
-                      >
-                        {s.status === "active"
-                          ? `${overdue ? "Overdue — was due" : "renews"} ${formatDate(s.next_due_date)}`
-                          : s.status}
-                      </span>
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-mono font-semibold">
-                      {formatINR(s.amount)}
-                    </p>
-                    <p className="text-xs text-ink-3">
-                      /{s.billing_cycle.replace("_", " ")}
-                    </p>
-                  </div>
-                  {s.status === "active" && (
-                    <form action={markPaid}>
-                      <input type="hidden" name="id" value={s.id} />
-                      <button
-                        className="glass rounded-full px-3 py-1.5 text-xs text-glow transition hover:border-glow/40"
-                        title="Mark paid — advances next due date"
-                      >
-                        Mark paid
-                      </button>
-                    </form>
-                  )}
-                  <form action={deleteSubscription}>
-                    <input type="hidden" name="id" value={s.id} />
-                    <button
-                      className="glass rounded-full px-3 py-1.5 text-xs text-ink-3 transition hover:text-overdue"
-                      title="Delete subscription"
-                    >
-                      ✕
-                    </button>
-                  </form>
-                </li>
-              );
-            })}
+            {shown.map((s, i) => (
+              <SubscriptionRow
+                key={s.id}
+                id={s.id}
+                name={s.name}
+                entityName={entityName(s.entity_id)}
+                amount={s.amount}
+                billingCycle={s.billing_cycle}
+                nextDueDate={s.next_due_date}
+                status={s.status}
+                isAutoDebit={s.is_auto_debit}
+                overdue={new Date(s.next_due_date) < now && s.status === "active"}
+                index={i}
+                markPaidAction={markPaid}
+                deleteAction={deleteSubscription}
+              />
+            ))}
           </ul>
         )}
       </section>

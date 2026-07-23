@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDate } from "@/lib/format";
 
@@ -46,13 +47,26 @@ export default async function SubscribersPage() {
               const planName =
                 (billing?.plans as unknown as { name: string } | null)?.name ??
                 "Free";
+              const banned = !!u.banned_until && new Date(u.banned_until) > new Date();
               return (
-                <tr key={u.id} className="border-b border-white/5">
+                <tr
+                  key={u.id}
+                  className="group border-b border-white/5 transition-colors duration-150 hover:bg-white/[0.03]"
+                >
                   <td className="px-4 py-3">
-                    <p className="font-medium">
-                      {(u.user_metadata?.full_name as string) ?? "—"}
-                    </p>
-                    <p className="text-xs text-ink-3">{u.email}</p>
+                    <Link href={`/admin/subscribers/${u.id}`} className="block">
+                      <p className="font-medium transition-colors group-hover:text-glow">
+                        {(u.user_metadata?.full_name as string) ?? "—"}
+                        {banned && (
+                          <span className="ml-2 rounded-full bg-overdue/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-overdue">
+                            Suspended
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-xs text-ink-3">
+                        {u.email ?? (u.phone ? `+${u.phone}` : "—")}
+                      </p>
+                    </Link>
                   </td>
                   <td className="px-4 py-3 text-ink-2">
                     {u.created_at ? formatDate(u.created_at) : "—"}

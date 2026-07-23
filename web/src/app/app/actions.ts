@@ -46,6 +46,47 @@ export async function addSubscription(formData: FormData) {
   redirect("/app");
 }
 
+export async function addEntity(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const name = String(formData.get("name") ?? "").trim();
+  const gstNumber = String(formData.get("gst_number") ?? "").trim();
+  if (!name) redirect("/app/profile?error=1");
+
+  // Re-check the plan's entity cap server-side — the UI already hides the
+  // form once at the limit, but that's not a security boundary on its own.
+  const [{ data: billing }, { count }] = await Promise.all([
+    supabase.from("subscriber_billing").select("*, plans(max_entities)").maybeSingle(),
+    supabase.from("entities").select("id", { count: "exact", head: true }),
+  ]);
+  const maxEntities = (billing?.plans as unknown as { max_entities: number | null } | null)
+    ?.max_entities;
+  const freeMax = 1; // no subscriber_billing row at all means the Free plan's cap
+  const limit = billing ? maxEntities : freeMax;
+  if (limit !== null && limit !== undefined && (count ?? 0) >= limit) {
+    redirect("/app/profile?error=limit");
+  }
+
+  const { error } = await supabase.from("entities").insert({
+    user_id: user.id,
+    name,
+    type: "company",
+    gst_number: gstNumber || null,
+  });
+  if (error) {
+    console.error("addEntity failed:", error.message);
+    redirect("/app/profile?error=1");
+  }
+
+  revalidatePath("/app/profile");
+  revalidatePath("/app");
+  redirect("/app/profile");
+}
+
 export async function deleteSubscription(formData: FormData) {
   const supabase = await createClient();
   const id = String(formData.get("id"));

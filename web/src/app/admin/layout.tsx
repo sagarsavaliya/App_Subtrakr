@@ -2,14 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminIdentity } from "@/lib/adminAuth";
 import { SignOutButton } from "@/components/SignOutButton";
-
-const NAV = [
-  ["/admin", "Overview"],
-  ["/admin/subscribers", "Subscribers"],
-  ["/admin/payments", "Payments"],
-  ["/admin/plans", "Plans"],
-  ["/admin/settings", "Settings"],
-] as const;
+import { AdminNavLinks } from "@/components/admin/AdminNavLinks";
 
 export default async function AdminLayout({
   children,
@@ -50,17 +43,7 @@ export default async function AdminLayout({
         <p className="mb-4 px-2 text-[10px] uppercase tracking-widest text-ink-3">
           Super admin
         </p>
-        <nav className="flex flex-col gap-1">
-          {NAV.map(([href, label]) => (
-            <Link
-              key={href}
-              href={href}
-              className="rounded-xl px-3 py-2 text-sm text-ink-2 transition hover:bg-white/5 hover:text-ink"
-            >
-              {label}
-            </Link>
-          ))}
-        </nav>
+        <AdminNavLinks />
         <div className="mt-6 border-t border-white/10 px-2 pt-4">
           <p className="truncate text-xs text-ink-3">{admin.email}</p>
           <div className="mt-2">
