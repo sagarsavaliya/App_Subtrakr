@@ -10,7 +10,6 @@ import {
   DeleteAccountButton,
 } from "@/components/admin/SubscriberActions";
 import { PlanOverrideForm } from "@/components/admin/PlanOverrideForm";
-import { RecordPaymentForm } from "@/components/admin/RecordPaymentForm";
 import { SubscriptionRow } from "@/components/SubscriptionRow";
 import { adminMarkSubscriptionPaid, adminDeleteSubscription } from "../../actions";
 
@@ -24,10 +23,13 @@ type BillingRow = {
 
 export default async function SubscriberDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ entity?: string }>;
 }) {
   const { id } = await params;
+  const { entity: entityFilter } = await searchParams;
   const db = createAdminClient();
   const admin = await getAdminIdentity();
 
@@ -74,6 +76,9 @@ export default async function SubscriberDetailPage({
   const now = new Date();
 
   const allSubs = subs ?? [];
+  const shownSubs = entityFilter
+    ? allSubs.filter((s) => s.entity_id === entityFilter)
+    : allSubs;
   const activeSubs = allSubs.filter((s) => s.status === "active");
   const monthlySpend = activeSubs.reduce(
     (sum, s) => sum + monthlyEquivalent(s.amount, s.billing_cycle, s.custom_cycle_days),
@@ -142,16 +147,37 @@ export default async function SubscriberDetailPage({
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <div>
-          <h2 className="mb-3 text-sm font-semibold text-ink-2">
-            Subscriptions ({subs?.length ?? 0})
-          </h2>
-          {!subs?.length ? (
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-ink-2">
+              Subscriptions ({shownSubs.length}{entityFilter ? ` of ${allSubs.length}` : ""})
+            </h2>
+            {entities && entities.length > 1 && (
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  href={`/admin/subscribers/${user.id}`}
+                  className={`rounded-full px-3 py-1 text-xs transition-transform duration-150 hover:scale-105 ${!entityFilter ? "brand-gradient font-semibold text-[#08201a]" : "glass text-ink-2"}`}
+                >
+                  All
+                </Link>
+                {entities.map((e) => (
+                  <Link
+                    key={e.id}
+                    href={`/admin/subscribers/${user.id}?entity=${e.id}`}
+                    className={`rounded-full px-3 py-1 text-xs transition-transform duration-150 hover:scale-105 ${entityFilter === e.id ? "brand-gradient font-semibold text-[#08201a]" : "glass text-ink-2"}`}
+                  >
+                    {e.name}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+          {!shownSubs.length ? (
             <p className="glass rounded-2xl p-6 text-sm text-ink-3">
-              No tracked subscriptions.
+              {entityFilter ? "No subscriptions for this entity." : "No tracked subscriptions."}
             </p>
           ) : (
             <ul className="space-y-3">
-              {subs.map((s, i) => (
+              {shownSubs.map((s, i) => (
                 <SubscriptionRow
                   key={s.id}
                   id={s.id}
@@ -220,16 +246,6 @@ export default async function SubscriberDetailPage({
               currentPlanId={billingRow?.plans?.id}
             />
           </div>
-
-          {allSubs.length > 0 && (
-            <div className="glass rounded-2xl p-5">
-              <h2 className="mb-3 text-sm font-semibold text-ink-2">Record a payment</h2>
-              <RecordPaymentForm
-                userId={user.id}
-                subscriptions={allSubs.map((s) => ({ id: s.id, name: s.name }))}
-              />
-            </div>
-          )}
 
           <div className="glass rounded-2xl p-5">
             <h2 className="mb-3 text-sm font-semibold text-ink-2">Entities</h2>
