@@ -186,26 +186,29 @@ export async function testWhatsAppConnection(): Promise<
   return result;
 }
 
-// In-memory cache for the template's actual approved language — avoids an
-// extra Graph API call on every single OTP send. Short TTL so a template
-// edit/re-approval in Meta Business Manager is picked up without a deploy.
-let cachedTemplateLanguage: { code: string; fetchedAt: number } | null = null;
+// In-memory cache for each template's actual approved language — avoids an
+// extra Graph API call on every send. Short TTL so a template edit/
+// re-approval in Meta Business Manager is picked up without a deploy.
+// Keyed per template name since different templates can have different
+// approved languages.
+const templateLanguageCache = new Map<string, { code: string; fetchedAt: number }>();
 const TEMPLATE_LANGUAGE_CACHE_MS = 5 * 60_000;
 
 /** The send call previously hardcoded language "en_US" — Meta's UI gives
  *  no language picker for this account (confirmed: always shows English,
- *  no choice), and the template's actual approved code is "en", not
+ *  no choice), and the OTP template's actual approved code is "en", not
  *  "en_US" (confirmed against the live template). A mismatch fails the
  *  send with an opaque Meta error. This resolves the real approved code
  *  instead of guessing, falling back to the confirmed "en" only if the
  *  lookup itself is unavailable. */
-async function resolveTemplateLanguage(accessToken: string): Promise<string> {
+async function resolveTemplateLanguage(
+  accessToken: string,
+  templateName: string,
+): Promise<string> {
   const FALLBACK = "en";
-  if (
-    cachedTemplateLanguage &&
-    Date.now() - cachedTemplateLanguage.fetchedAt < TEMPLATE_LANGUAGE_CACHE_MS
-  ) {
-    return cachedTemplateLanguage.code;
+  const cached = templateLanguageCache.get(templateName);
+  if (cached && Date.now() - cached.fetchedAt < TEMPLATE_LANGUAGE_CACHE_MS) {
+    return cached.code;
   }
 
   const businessAccountId = await getSetting("whatsapp_business_account_id");
@@ -213,7 +216,7 @@ async function resolveTemplateLanguage(accessToken: string): Promise<string> {
 
   try {
     const res = await fetch(
-      `https://graph.facebook.com/${GRAPH_VERSION}/${businessAccountId}/message_templates?name=subtrakr_otp`,
+      `https://graph.facebook.com/${GRAPH_VERSION}/${businessAccountId}/message_templates?name=${templateName}`,
       { headers: { Authorization: `Bearer ${accessToken}` } },
     );
     const body = await res.json();
@@ -222,7 +225,7 @@ async function resolveTemplateLanguage(accessToken: string): Promise<string> {
       (t) => t.status === "APPROVED",
     );
     if (!approved) return FALLBACK;
-    cachedTemplateLanguage = { code: approved.language, fetchedAt: Date.now() };
+    templateLanguageCache.set(templateName, { code: approved.language, fetchedAt: Date.now() });
     return approved.language;
   } catch {
     return FALLBACK;
@@ -242,8 +245,76 @@ export async function sendOtpWhatsApp(
   const creds = await whatsappCreds();
   if (!creds) return { ok: false, error: "WhatsApp credentials not configured." };
 
-  const language = await resolveTemplateLanguage(creds.accessToken);
+  const language = await resolveTemplateLanguage(creds.accessToken, "subtrakr_otp");
 
+  return sendTemplateMessage(creds, {
+    to,
+    templateName: "subtrakr_otp",
+    language,
+    components: [
+      { type: "body", parameters: [{ type: "text", text: code }] },
+      {
+        type: "button",
+        sub_type: "url",
+        index: "0",
+        parameters: [{ type: "text", text: code }],
+      },
+    ],
+    logLabel: "WhatsApp OTP",
+  });
+}
+
+/** Sends the subtrakr_renewal_reminder Utility template — a plain
+ *  three-variable body (service name, amount, renewal date), no button
+ *  component (that's an Authentication-template-only requirement, not
+ *  relevant here). Needs its own Meta-approved template, separate from
+ *  subtrakr_otp: WhatsApp template categories aren't interchangeable —
+ *  Authentication templates are locked to an OTP-shaped body and can't be
+ *  repurposed for arbitrary text like a renewal notice. */
+export async function sendRenewalReminderWhatsApp(
+  to: string,
+  params: { serviceName: string; amount: string; renewsOn: string },
+): Promise<{ ok: boolean; error?: string }> {
+  const creds = await whatsappCreds();
+  if (!creds) return { ok: false, error: "WhatsApp credentials not configured." };
+
+  const language = await resolveTemplateLanguage(creds.accessToken, "subtrakr_renewal_reminder");
+
+  return sendTemplateMessage(creds, {
+    to,
+    templateName: "subtrakr_renewal_reminder",
+    language,
+    components: [
+      {
+        type: "body",
+        parameters: [
+          { type: "text", text: params.serviceName },
+          { type: "text", text: params.renewsOn },
+          { type: "text", text: params.amount },
+        ],
+      },
+    ],
+    logLabel: "WhatsApp renewal reminder",
+  });
+}
+
+type TemplateComponent = {
+  type: string;
+  sub_type?: string;
+  index?: string;
+  parameters: { type: string; text: string }[];
+};
+
+async function sendTemplateMessage(
+  creds: { phoneNumberId: string; accessToken: string },
+  opts: {
+    to: string;
+    templateName: string;
+    language: string;
+    components: TemplateComponent[];
+    logLabel: string;
+  },
+): Promise<{ ok: boolean; error?: string }> {
   try {
     const res = await fetch(
       `https://graph.facebook.com/${GRAPH_VERSION}/${creds.phoneNumberId}/messages`,
@@ -256,27 +327,19 @@ export async function sendOtpWhatsApp(
         body: JSON.stringify({
           messaging_product: "whatsapp",
           recipient_type: "individual",
-          to,
+          to: opts.to,
           type: "template",
           template: {
-            name: "subtrakr_otp",
-            language: { code: language },
-            components: [
-              { type: "body", parameters: [{ type: "text", text: code }] },
-              {
-                type: "button",
-                sub_type: "url",
-                index: "0",
-                parameters: [{ type: "text", text: code }],
-              },
-            ],
+            name: opts.templateName,
+            language: { code: opts.language },
+            components: opts.components,
           },
         }),
       },
     );
     if (!res.ok) {
       const bodyText = await res.text();
-      console.error("WhatsApp OTP send failed:", res.status, bodyText);
+      console.error(`${opts.logLabel} send failed:`, res.status, bodyText);
       let error = `HTTP ${res.status}`;
       try {
         error = JSON.parse(bodyText)?.error?.message ?? error;
@@ -287,7 +350,7 @@ export async function sendOtpWhatsApp(
     }
     return { ok: true };
   } catch (e) {
-    console.error("WhatsApp OTP send threw:", e);
+    console.error(`${opts.logLabel} send threw:`, e);
     return { ok: false, error: e instanceof Error ? e.message : "Request failed" };
   }
 }

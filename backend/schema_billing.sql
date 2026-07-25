@@ -40,6 +40,24 @@ CREATE INDEX IF NOT EXISTS idx_phone_otp_challenges_phone ON phone_otp_challenge
 ALTER TABLE phone_otp_challenges ENABLE ROW LEVEL SECURITY;
 -- No policies — service_role only, by design.
 
+-- ── Renewal reminder send log ───────────────────────────────────────────
+-- Idempotency guard for the daily WhatsApp renewal-reminder cron
+-- (/api/cron/renewal-reminders, triggered by a scheduled GitHub Actions
+-- workflow). Keyed on (subscription_id, next_due_date, offset_days) rather
+-- than just (subscription_id, offset_days) — next_due_date is part of the
+-- key so a resend correctly fires again next cycle instead of being
+-- blocked forever by a row from the previous renewal.
+CREATE TABLE IF NOT EXISTS renewal_reminders_sent (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  subscription_id UUID REFERENCES subscriptions NOT NULL,
+  next_due_date DATE NOT NULL,
+  offset_days INTEGER NOT NULL,
+  sent_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (subscription_id, next_due_date, offset_days)
+);
+ALTER TABLE renewal_reminders_sent ENABLE ROW LEVEL SECURITY;
+-- No policies — service_role only (the cron route runs server-side).
+
 -- ── App settings (Razorpay keys, SMTP, etc.) ────────────────────────────
 -- Same access model as admin_users: service_role only. Secrets are
 -- encrypted with pgcrypto using a key that lives ONLY in the Next.js

@@ -1,0 +1,28 @@
+name: Renewal Reminders
+
+on:
+  schedule:
+    # 09:00 IST daily — late enough that "renews today" still reads as
+    # useful, early enough to act on before the day gets away.
+    - cron: '30 3 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  send:
+    # Just an outbound HTTPS call to the already-deployed site — no build,
+    # no need for the self-hosted runner.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger renewal-reminder send
+        run: |
+          set -e
+          status=$(curl -s -o response.json -w "%{http_code}" -X POST \
+            https://subtrakr.me/api/cron/renewal-reminders \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json")
+          echo "HTTP $status"
+          cat response.json
+          if [ "$status" -ge 300 ]; then
+            echo "::error::Renewal reminder cron failed with HTTP $status"
+            exit 1
+          fi
