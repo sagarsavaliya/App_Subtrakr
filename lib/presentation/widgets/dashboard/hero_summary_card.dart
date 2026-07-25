@@ -30,7 +30,7 @@ class HeroSummaryCard extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: AppColors.glassBorderAccent),
-        boxShadow: AppColors.shadowGlow,
+        boxShadow: AppColors.shadowHero,
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,

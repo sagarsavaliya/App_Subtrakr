@@ -57,6 +57,12 @@ class AppColors {
   static const shadowGlow = [
     BoxShadow(color: Color(0x592EC4A0), blurRadius: 32, offset: Offset(0, 8)),
   ];
+  // Softer variant for large surfaces (hero cards) — shadowGlow's intensity
+  // is tuned for small buttons/FAB; at hero-card size the same alpha reads
+  // as a heavy, distracting halo. Same values as the web app's .hero-glow.
+  static const shadowHero = [
+    BoxShadow(color: Color(0x242EC4A0), blurRadius: 48, offset: Offset(0, 12)),
+  ];
 
   /// Service monogram identity colors — distinct from brand accent by design.
   static const serviceNetflix = Color(0xFFE5484D);
