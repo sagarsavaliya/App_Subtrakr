@@ -30,7 +30,7 @@ extension BillingCycleLabel on BillingCycle {
 
 extension SubscriptionCategoryLabel on SubscriptionCategory {
   String get label => switch (this) {
-    SubscriptionCategory.devTools => 'DevTools',
+    SubscriptionCategory.devTools => 'Dev Tools',
     SubscriptionCategory.entertainment => 'Entertainment',
     SubscriptionCategory.telecom => 'Telecom',
     SubscriptionCategory.cloud => 'Cloud',

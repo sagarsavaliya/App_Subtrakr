@@ -11,6 +11,7 @@ import '../../providers/entity_provider.dart';
 import '../../providers/subscription_provider.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_chip.dart';
+import '../../widgets/common/custom_dropdown.dart';
 import '../../widgets/common/glass_surface.dart';
 import '../../widgets/common/service_logo.dart';
 
@@ -43,6 +44,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
   final _amountController = TextEditingController();
   ServiceEntry? _selected;
   BillingCycle _cycle = BillingCycle.monthly;
+  SubscriptionCategory _category = SubscriptionCategory.other;
   DateTime _startDate = DateTime.now();
   String? _entityId;
   bool _autoDebit = false;
@@ -61,6 +63,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
           ? existing.amount.toStringAsFixed(0)
           : existing.amount.toString();
       _cycle = existing.billingCycle;
+      _category = existing.category;
       _startDate = existing.startDate;
       _entityId = existing.entityId;
       _autoDebit = existing.isAutoDebit;
@@ -114,6 +117,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
       _selected = entry;
       _nameController.text = entry.name;
       _cycle = entry.cycle;
+      _category = entry.category;
       if (entry.defaultAmount > 0) {
         _amountController.text = entry.defaultAmount.toStringAsFixed(0);
       }
@@ -145,7 +149,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
         entityId: entity.id,
         name: _nameController.text.trim(),
         initials: existing.initials,
-        category: existing.category,
+        category: _category,
         amount: double.parse(_amountController.text),
         currency: existing.currency,
         billingCycle: _cycle,
@@ -173,7 +177,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
       initials:
           _selected?.initials ??
           _nameController.text.trim().substring(0, 1).toUpperCase(),
-      category: _selected?.category ?? SubscriptionCategory.other,
+      category: _category,
       amount: double.parse(_amountController.text),
       billingCycle: _cycle,
       startDate: _startDate,
@@ -410,6 +414,17 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
                                 onTap: () => setState(() => _cycle = c),
                               ),
                           ],
+                        ),
+                        const SizedBox(height: 18),
+                        _FieldLabel('Category'),
+                        const SizedBox(height: 8),
+                        CustomDropdown<SubscriptionCategory>(
+                          value: _category,
+                          items: [
+                            for (final c in SubscriptionCategory.values)
+                              (c, c.label),
+                          ],
+                          onChanged: (c) => setState(() => _category = c),
                         ),
                         const SizedBox(height: 18),
                         _FieldLabel('First charge date'),

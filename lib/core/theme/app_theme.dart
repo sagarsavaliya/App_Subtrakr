@@ -52,6 +52,42 @@ class AppTheme {
           TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
         },
       ),
+      // showDatePicker's stock Material dialog defaults to Material blue —
+      // themed here so it matches the web app's custom dark-glass date
+      // picker instead of looking like a different product mid-flow.
+      datePickerTheme: DatePickerThemeData(
+        backgroundColor: AppColors.bgElevated2,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        headerBackgroundColor: Colors.transparent,
+        headerForegroundColor: AppColors.textPrimary,
+        headerHeadlineStyle: AppTextStyles.heading2,
+        weekdayStyle: AppTextStyles.label.copyWith(color: AppColors.textHint),
+        dayStyle: AppTextStyles.body,
+        todayForegroundColor: const WidgetStatePropertyAll(AppColors.accentGlow),
+        todayBorder: const BorderSide(color: AppColors.accentGlow, width: 1.5),
+        dayForegroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return const Color(0xFF08201A);
+          if (states.contains(WidgetState.disabled)) return AppColors.textHint;
+          return AppColors.textSecondary;
+        }),
+        dayBackgroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return AppColors.accentA;
+          return Colors.transparent;
+        }),
+        dayOverlayColor: const WidgetStatePropertyAll(AppColors.glassFill),
+        yearForegroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return const Color(0xFF08201A);
+          return AppColors.textSecondary;
+        }),
+        yearBackgroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return AppColors.accentA;
+          return Colors.transparent;
+        }),
+        confirmButtonStyle: TextButton.styleFrom(foregroundColor: AppColors.accentGlow),
+        cancelButtonStyle: TextButton.styleFrom(foregroundColor: AppColors.textSecondary),
+      ),
     );
   }
 }
