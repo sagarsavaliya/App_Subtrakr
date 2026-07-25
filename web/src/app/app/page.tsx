@@ -135,6 +135,7 @@ export default async function DashboardPage({
                 isAutoDebit={s.is_auto_debit}
                 overdue={new Date(s.next_due_date) < now && s.status === "active"}
                 index={i}
+                detailHref={`/app/subscription/${s.id}`}
                 markPaidAction={markPaid}
                 deleteAction={deleteSubscription}
               />

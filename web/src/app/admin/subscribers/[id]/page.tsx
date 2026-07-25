@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAdminIdentity } from "@/lib/adminAuth";
-import { formatDate, formatINR } from "@/lib/format";
+import { formatDate, formatINR, monthlyEquivalent } from "@/lib/format";
 import { ArrowLeftIcon, BuildingIcon } from "@/components/icons";
 import {
   SuspendToggleButton,
@@ -10,6 +10,7 @@ import {
   DeleteAccountButton,
 } from "@/components/admin/SubscriberActions";
 import { PlanOverrideForm } from "@/components/admin/PlanOverrideForm";
+import { RecordPaymentForm } from "@/components/admin/RecordPaymentForm";
 import { SubscriptionRow } from "@/components/SubscriptionRow";
 import { adminMarkSubscriptionPaid, adminDeleteSubscription } from "../../actions";
 
@@ -37,6 +38,7 @@ export default async function SubscriberDetailPage({
     { data: subs },
     { data: plans },
     { data: transactions },
+    { data: payments },
   ] = await Promise.all([
     db.auth.admin.getUserById(id),
     db
@@ -59,6 +61,7 @@ export default async function SubscriberDetailPage({
       .eq("user_id", id)
       .order("created_at", { ascending: false })
       .limit(10),
+    db.from("payment_history").select("amount_paid").eq("user_id", id),
   ]);
 
   const user = userRes?.user;
@@ -69,6 +72,20 @@ export default async function SubscriberDetailPage({
   const name = (user.user_metadata?.full_name as string) ?? "—";
   const entityName = (eid: string) => entities?.find((e) => e.id === eid)?.name ?? "";
   const now = new Date();
+
+  const allSubs = subs ?? [];
+  const activeSubs = allSubs.filter((s) => s.status === "active");
+  const monthlySpend = activeSubs.reduce(
+    (sum, s) => sum + monthlyEquivalent(s.amount, s.billing_cycle, s.custom_cycle_days),
+    0,
+  );
+  const lifetimePaid = (payments ?? []).reduce((sum, p) => sum + Number(p.amount_paid), 0);
+  const stats: [string, string][] = [
+    [String(activeSubs.length), "Active"],
+    [formatINR(Math.round(monthlySpend)), "Monthly spend"],
+    [formatINR(lifetimePaid), "Lifetime paid"],
+    [String(activeSubs.filter((s) => s.is_auto_debit).length), "Auto-debit"],
+  ];
 
   return (
     <div>
@@ -109,6 +126,18 @@ export default async function SubscriberDetailPage({
             <DeleteAccountButton userId={user.id} name={name} />
           )}
         </div>
+      </div>
+
+      <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        {stats.map(([value, label]) => (
+          <div
+            key={label}
+            className="glass rounded-2xl p-4 transition-transform duration-200 hover:-translate-y-0.5"
+          >
+            <p className="font-mono text-lg font-semibold">{value}</p>
+            <p className="mt-1 text-xs text-ink-2">{label}</p>
+          </div>
+        ))}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
@@ -191,6 +220,16 @@ export default async function SubscriberDetailPage({
               currentPlanId={billingRow?.plans?.id}
             />
           </div>
+
+          {allSubs.length > 0 && (
+            <div className="glass rounded-2xl p-5">
+              <h2 className="mb-3 text-sm font-semibold text-ink-2">Record a payment</h2>
+              <RecordPaymentForm
+                userId={user.id}
+                subscriptions={allSubs.map((s) => ({ id: s.id, name: s.name }))}
+              />
+            </div>
+          )}
 
           <div className="glass rounded-2xl p-5">
             <h2 className="mb-3 text-sm font-semibold text-ink-2">Entities</h2>

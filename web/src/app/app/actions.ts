@@ -96,6 +96,11 @@ export async function deleteSubscription(formData: FormData) {
   const { error } = await supabase.from("subscriptions").delete().eq("id", id);
   if (error) console.error("deleteSubscription failed:", error.message);
   revalidatePath("/app");
+  // Unconditional redirect: harmless when called from the dashboard list
+  // (already on /app), and required when called from the now-deleted
+  // subscription's own detail page — it can't stay on a page for
+  // something that no longer exists.
+  redirect("/app");
 }
 
 export async function markPaid(formData: FormData) {
@@ -136,6 +141,7 @@ export async function markPaid(formData: FormData) {
     .eq("id", id);
 
   revalidatePath("/app");
+  revalidatePath(`/app/subscription/${id}`);
 }
 
 function computeNextDue(

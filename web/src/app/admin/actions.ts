@@ -127,6 +127,36 @@ export async function adminMarkSubscriptionPaid(formData: FormData) {
   revalidatePath(`/admin/subscribers/${userId}`);
 }
 
+/** Logs a payment with an admin-chosen amount and date, without touching
+ *  next_due_date/status — distinct from adminMarkSubscriptionPaid, which
+ *  always uses today's date and the subscription's current amount to
+ *  advance the cycle. This is for correcting/backfilling history (a
+ *  partial payment, a missed record) where the cycle itself shouldn't
+ *  move. */
+export async function adminRecordPayment(formData: FormData) {
+  await requireAdmin();
+  const db = createAdminClient();
+  const id = String(formData.get("id"));
+  const userId = String(formData.get("user_id"));
+  const amount = Number(formData.get("amount"));
+  const paidDate = String(formData.get("paid_date"));
+
+  if (!id || !Number.isFinite(amount) || amount <= 0 || Number.isNaN(new Date(paidDate).getTime())) {
+    throw new Error("Enter a valid subscription, amount, and date.");
+  }
+
+  const { error } = await db.from("payment_history").insert({
+    user_id: userId,
+    subscription_id: id,
+    paid_date: paidDate,
+    amount_paid: amount,
+    source: "manual",
+  });
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/admin/subscribers/${userId}`);
+}
+
 export async function adminDeleteSubscription(formData: FormData) {
   await requireAdmin();
   const db = createAdminClient();

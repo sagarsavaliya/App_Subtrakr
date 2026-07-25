@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { formatINR, formatDate } from "@/lib/format";
 import { TrashIcon } from "./icons";
@@ -21,6 +22,11 @@ type Props = {
    *  variants also need `user_id` to know which subscriber's revalidation
    *  path to hit. */
   hiddenFields?: Record<string, string>;
+  /** When set, the name/avatar area links to the subscription's detail
+   *  page (payment history, total paid). Omitted in the admin context —
+   *  /app/subscription/[id] is RLS-scoped to the owning user, so an admin
+   *  viewing someone else's row can't follow it anyway. */
+  detailHref?: string;
 };
 
 /** Client component so the list can use framer-motion (entrance stagger +
@@ -40,20 +46,16 @@ export function SubscriptionRow({
   markPaidAction,
   deleteAction,
   hiddenFields,
+  detailHref,
 }: Props) {
   const extraInputs = hiddenFields
     ? Object.entries(hiddenFields).map(([k, v]) => (
         <input key={k} type="hidden" name={k} value={v} />
       ))
     : null;
-  return (
-    <motion.li
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, delay: Math.min(index, 8) * 0.03 }}
-      whileHover={{ y: -2 }}
-      className="glass flex items-center gap-4 rounded-2xl p-4 transition-shadow duration-200 hover:shadow-[0_8px_28px_rgba(0,0,0,0.35)]"
-    >
+
+  const identity = (
+    <>
       <div className="brand-gradient flex h-11 w-11 shrink-0 items-center justify-center rounded-xl font-bold text-[#08201a]">
         {name.slice(0, 2).toUpperCase()}
       </div>
@@ -72,6 +74,24 @@ export function SubscriptionRow({
           </span>
         </p>
       </div>
+    </>
+  );
+
+  return (
+    <motion.li
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, delay: Math.min(index, 8) * 0.03 }}
+      whileHover={{ y: -2 }}
+      className="glass flex items-center gap-4 rounded-2xl p-4 transition-shadow duration-200 hover:shadow-[0_8px_28px_rgba(0,0,0,0.35)]"
+    >
+      {detailHref ? (
+        <Link href={detailHref} className="flex min-w-0 flex-1 items-center gap-4">
+          {identity}
+        </Link>
+      ) : (
+        identity
+      )}
       <div className="text-right">
         <p className="font-mono font-semibold">{formatINR(amount)}</p>
         <p className="text-xs text-ink-3">/{billingCycle.replace("_", " ")}</p>
