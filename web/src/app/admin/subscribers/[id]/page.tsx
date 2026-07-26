@@ -117,7 +117,8 @@ export default async function SubscriberDetailPage({
               )}
             </p>
             <p className="text-sm text-ink-2">
-              {user.email ?? (user.phone ? `+${user.phone}` : "—")}
+              {[user.email, user.phone ? `+${user.phone}` : null].filter(Boolean).join(" · ") ||
+                "—"}
             </p>
             <p className="mt-0.5 text-xs text-ink-3">
               Joined {user.created_at ? formatDate(user.created_at) : "—"}

@@ -71,7 +71,8 @@ export default async function SubscribersPage() {
                         )}
                       </p>
                       <p className="text-xs text-ink-3">
-                        {u.email ?? (u.phone ? `+${u.phone}` : "—")}
+                        {[u.email, u.phone ? `+${u.phone}` : null].filter(Boolean).join(" · ") ||
+                          "—"}
                       </p>
                     </Link>
                   </td>

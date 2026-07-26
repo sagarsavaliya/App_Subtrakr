@@ -38,6 +38,7 @@ export function CustomSelect({ name, options, defaultValue, placeholder }: Props
   const [mounted, setMounted] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLUListElement>(null);
 
   useEffect(() => setMounted(true), []);
 
@@ -45,9 +46,18 @@ export function CustomSelect({ name, options, defaultValue, placeholder }: Props
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      const target = e.target as Node;
+      // The open panel is portaled to document.body, so it's NOT a DOM
+      // descendant of rootRef even though React treats it as one — a
+      // native (non-React) mousedown listener like this one follows the
+      // real DOM tree. Without also checking panelRef, this fired on
+      // *every* option click (mousedown precedes click), closing the
+      // dropdown and unmounting the option before its own onClick ever
+      // ran — mouse selection silently did nothing, only arrow keys +
+      // Enter worked, since those never depend on this listener at all.
+      if (rootRef.current?.contains(target)) return;
+      if (panelRef.current?.contains(target)) return;
+      setOpen(false);
     }
     document.addEventListener("mousedown", onClickOutside);
     return () => document.removeEventListener("mousedown", onClickOutside);
@@ -100,6 +110,7 @@ export function CustomSelect({ name, options, defaultValue, placeholder }: Props
   const panel = open && rect && mounted && (
     <AnimatePresence>
       <motion.ul
+        ref={panelRef}
         role="listbox"
         initial={{ opacity: 0, y: -6, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
