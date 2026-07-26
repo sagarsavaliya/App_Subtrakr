@@ -117,12 +117,14 @@ export function BillingPlanGrid({
                 highlight ? "glass-strong border-glow/30 glow-shadow" : "glass"
               }`}
             >
-              {highlight && (
-                <p className="mb-2 inline-block rounded-full bg-glow/15 px-3 py-0.5 text-xs font-semibold text-glow">
-                  Most popular
-                </p>
-              )}
-              <h2 className="text-lg font-semibold">{plan.name}</h2>
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-lg font-semibold">{plan.name}</h2>
+                {highlight && (
+                  <p className="shrink-0 rounded-full bg-glow/15 px-3 py-0.5 text-xs font-semibold text-glow">
+                    Most popular
+                  </p>
+                )}
+              </div>
               <p className="mt-1 min-h-10 text-sm text-ink-2">{plan.description}</p>
 
               <p className="mt-4 font-mono text-3xl font-bold">

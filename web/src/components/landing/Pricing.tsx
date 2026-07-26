@@ -119,12 +119,14 @@ export function Pricing({ plans }: { plans: LandingPlan[] }) {
                   : "glass"
               }`}
             >
-              {highlight && (
-                <p className="mb-3 inline-block rounded-full bg-glow/15 px-3 py-1 text-xs font-semibold text-glow">
-                  Most popular
-                </p>
-              )}
-              <h3 className="text-xl font-semibold">{plan.name}</h3>
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-xl font-semibold">{plan.name}</h3>
+                {highlight && (
+                  <p className="shrink-0 rounded-full bg-glow/15 px-3 py-1 text-xs font-semibold text-glow">
+                    Most popular
+                  </p>
+                )}
+              </div>
               <p className="mt-1 min-h-10 text-sm text-ink-2">{plan.description}</p>
 
               <p className="mt-5 font-mono text-4xl font-bold">
