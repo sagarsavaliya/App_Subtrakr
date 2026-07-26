@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS entities (
 CREATE TABLE IF NOT EXISTS payment_methods (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
+  entity_id UUID REFERENCES entities ON DELETE CASCADE NOT NULL,
   label TEXT NOT NULL,
   type TEXT CHECK (type IN ('credit_card', 'debit_card', 'upi', 'bank_transfer', 'wallet')) NOT NULL,
   bank_name TEXT,
@@ -47,6 +48,16 @@ ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS wallet_mobile TEXT;
 ALTER TABLE payment_methods DROP CONSTRAINT IF EXISTS payment_methods_type_check;
 ALTER TABLE payment_methods ADD CONSTRAINT payment_methods_type_check
   CHECK (type IN ('credit_card', 'debit_card', 'upi', 'bank_transfer', 'wallet'));
+-- Payment methods were user-wide (not tied to a specific entity) before
+-- this — backfill any existing rows onto their owner's personal entity
+-- (every account has exactly one), then enforce NOT NULL going forward.
+ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS entity_id UUID REFERENCES entities ON DELETE CASCADE;
+UPDATE payment_methods
+SET entity_id = (
+  SELECT id FROM entities WHERE entities.user_id = payment_methods.user_id AND entities.type = 'personal' LIMIT 1
+)
+WHERE entity_id IS NULL;
+ALTER TABLE payment_methods ALTER COLUMN entity_id SET NOT NULL;
 
 -- Subscriptions
 CREATE TABLE IF NOT EXISTS subscriptions (
