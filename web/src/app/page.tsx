@@ -58,6 +58,17 @@ const FALLBACK_PLANS: LandingPlan[] = [
     max_subscriptions: null,
   },
   {
+    code: "business_pro",
+    name: "Business Pro",
+    description: "Personal plus four businesses.",
+    price_monthly: 129,
+    price_quarterly: 339,
+    price_half_yearly: 599,
+    price_yearly: 1049,
+    max_entities: 5,
+    max_subscriptions: null,
+  },
+  {
     code: "team",
     name: "Business",
     description: "Every business you run, one place.",

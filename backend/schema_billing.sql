@@ -78,10 +78,10 @@ CREATE TABLE IF NOT EXISTS app_settings (
 ALTER TABLE app_settings ENABLE ROW LEVEL SECURITY;
 -- No policies — service_role only, by design.
 
--- ── Plans (Free / Starter / Personal / Business Lite / Business) ────────
+-- ── Plans (Free / Starter / Personal / Business Lite / Business Pro / Business) ──
 CREATE TABLE IF NOT EXISTS plans (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  code TEXT UNIQUE NOT NULL,             -- 'free', 'starter', 'pro', 'business_lite', 'team'
+  code TEXT UNIQUE NOT NULL,             -- 'free', 'starter', 'pro', 'business_lite', 'business_pro', 'team'
   name TEXT NOT NULL,
   description TEXT,
   price_monthly DECIMAL(10,2),
@@ -172,11 +172,13 @@ GRANT SELECT ON plans, subscriber_billing, billing_transactions TO authenticated
 GRANT USAGE ON SCHEMA public TO anon;
 GRANT SELECT ON plans TO anon;
 
--- Seed/reprice the plans — 5 tiers now instead of 3. Codes 'free'/'pro'/
--- 'team' are kept as-is (not renamed) even though their display names
--- changed ("Pro" -> "Personal", "Team" -> "Business") so any existing
--- subscriber_billing.plan_id FK stays valid; 'starter' and 'business_lite'
--- are new rows filling the gap between them. DO UPDATE (not DO NOTHING)
+-- Seed/reprice the plans — 6 tiers now. Codes 'free'/'pro'/'team' are kept
+-- as-is (not renamed) even though their display names changed ("Pro" ->
+-- "Personal", "Team" -> "Business") so any existing subscriber_billing.
+-- plan_id FK stays valid; 'starter'/'business_lite'/'business_pro' are new
+-- rows filling the gaps. business_pro (4 business entities) sits between
+-- business_lite (2) and the fully-unlimited business/team tier — sort_order
+-- for 'team' moves from 4 to 5 to make room. DO UPDATE (not DO NOTHING)
 -- because this is a real repricing that must actually apply to rows that
 -- already exist in prod from the original 3-tier seed.
 INSERT INTO plans (code, name, description, price_monthly, price_quarterly, price_half_yearly, price_yearly, max_entities, max_subscriptions, sort_order)
@@ -185,7 +187,8 @@ VALUES
   ('starter', 'Starter', 'A bit more room to grow.', 29, 79, 139, 239, 1, 10, 1),
   ('pro', 'Personal', 'Everything for your own subscriptions.', 49, 129, 229, 399, 1, NULL, 2),
   ('business_lite', 'Business Lite', 'Personal plus two businesses.', 99, 259, 459, 799, 3, NULL, 3),
-  ('team', 'Business', 'Every business you run, one place.', 149, 389, 699, 1199, NULL, NULL, 4)
+  ('business_pro', 'Business Pro', 'Personal plus four businesses.', 129, 339, 599, 1049, 5, NULL, 4),
+  ('team', 'Business', 'Every business you run, one place.', 149, 389, 699, 1199, NULL, NULL, 5)
 ON CONFLICT (code) DO UPDATE SET
   name = EXCLUDED.name,
   description = EXCLUDED.description,
