@@ -25,8 +25,8 @@ export function AppNavLinks() {
     <nav ref={containerRef} className="glass relative flex items-center gap-1 rounded-full p-1 text-sm">
       {rect && (
         <motion.span
-          className="brand-gradient absolute rounded-full"
-          animate={{ left: rect.left, top: rect.top, width: rect.width, height: rect.height }}
+          className="brand-gradient absolute left-0 top-0 rounded-full"
+          animate={{ x: rect.left, y: rect.top, width: rect.width, height: rect.height }}
           transition={LIQUID_TRANSITION}
         />
       )}

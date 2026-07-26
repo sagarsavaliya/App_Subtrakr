@@ -27,8 +27,8 @@ export function AdminNavLinks() {
     <nav ref={containerRef} className="relative flex flex-col gap-1">
       {rect && (
         <motion.span
-          className="brand-gradient absolute rounded-xl"
-          animate={{ left: rect.left, top: rect.top, width: rect.width, height: rect.height }}
+          className="brand-gradient absolute left-0 top-0 rounded-xl"
+          animate={{ x: rect.left, y: rect.top, width: rect.width, height: rect.height }}
           transition={LIQUID_TRANSITION}
         />
       )}

@@ -51,14 +51,18 @@ export function useSlidingRect<T extends HTMLElement = HTMLElement>(activeKey: s
   return { containerRef, register, rect };
 }
 
-/** Deliberately mismatched spring params per edge — left/top settle
- *  faster than width/height, so the pill's trailing edge briefly lags
- *  and the shape stretches/squashes through the motion instead of
- *  sliding as a rigid block. This asymmetry is what reads as "liquid"
- *  rather than a color crossfade or a snap-to-place jump. */
+/** Deliberately underdamped (bouncy) springs, with position (x/y)
+ *  oscillating at a different rate than size (width/height) — the pill's
+ *  trailing edge overshoots and wobbles back rather than the whole shape
+ *  settling in lockstep, which is what actually reads as "liquid" rather
+ *  than a quick, barely-there snap. Consumers animate `x`/`y` (transform,
+ *  GPU-composited) for position instead of `left`/`top`, so the position
+ *  half of the motion is never at the mercy of layout/paint scheduling —
+ *  only width/height (unavoidable for the pill to resize correctly) touch
+ *  layout, and only for this one small absolutely-positioned element. */
 export const LIQUID_TRANSITION = {
-  left: { type: "spring" as const, stiffness: 380, damping: 32, mass: 0.7 },
-  top: { type: "spring" as const, stiffness: 380, damping: 32, mass: 0.7 },
-  width: { type: "spring" as const, stiffness: 220, damping: 24, mass: 1 },
-  height: { type: "spring" as const, stiffness: 220, damping: 24, mass: 1 },
+  x: { type: "spring" as const, stiffness: 300, damping: 15, mass: 1 },
+  y: { type: "spring" as const, stiffness: 300, damping: 15, mass: 1 },
+  width: { type: "spring" as const, stiffness: 160, damping: 12, mass: 1.3 },
+  height: { type: "spring" as const, stiffness: 160, damping: 12, mass: 1.3 },
 };
