@@ -164,7 +164,7 @@ export function CustomSelect({ name, options, defaultValue, placeholder, onChang
         aria-expanded={open}
         className="glass flex w-full cursor-pointer items-center justify-between rounded-xl px-4 py-3 text-left text-sm text-ink outline-none transition-colors duration-200 hover:border-white/20 focus:border-glow/40"
       >
-        <span className={selected ? "" : "text-ink-3"}>
+        <span className={`min-w-0 truncate ${selected ? "" : "text-ink-3"}`}>
           {selected?.label ?? placeholder ?? "Select…"}
         </span>
         <ChevronIcon open={open} />

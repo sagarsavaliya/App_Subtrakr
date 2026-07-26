@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { motion } from "framer-motion";
 
 type Option = { value: string; label: string };
@@ -10,7 +10,13 @@ type Option = { value: string; label: string };
  *  AppChip pattern exactly (active = brand-gradient fill, inactive =
  *  glass), used there for the same billing-cycle/entity choices. Submits
  *  via a hidden input, so the surrounding <form action={...}> Server
- *  Action needs no changes. */
+ *  Action needs no changes.
+ *
+ *  The active background is one shared `motion.span` (layoutId) that
+ *  slides/morphs between chips instead of each button abruptly
+ *  recoloring — same technique as AppNavLinks' tab indicator. `useId`
+ *  scopes the layoutId per instance so two ChipSelects on the same page
+ *  (e.g. billing cycle + card network) never animate into each other. */
 export function ChipSelect({
   name,
   options,
@@ -26,6 +32,7 @@ export function ChipSelect({
   onChange?: (value: string) => void;
 }) {
   const [value, setValue] = useState(defaultValue ?? options[0]?.value ?? "");
+  const uid = useId();
 
   function select(v: string) {
     setValue(v);
@@ -44,13 +51,24 @@ export function ChipSelect({
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => select(o.value)}
-            className={`cursor-pointer rounded-full px-4 py-2 text-sm transition-colors duration-150 ${
-              active
-                ? "brand-gradient font-semibold text-[#08201a]"
-                : "glass text-ink-2 hover:text-ink"
-            }`}
+            className="relative cursor-pointer rounded-full px-4 py-2 text-sm"
           >
-            {o.label}
+            {active ? (
+              <motion.span
+                layoutId={`chip-active-${uid}`}
+                transition={{ type: "spring", stiffness: 500, damping: 40 }}
+                className="brand-gradient absolute inset-0 rounded-full"
+              />
+            ) : (
+              <span className="glass absolute inset-0 rounded-full" />
+            )}
+            <span
+              className={`relative transition-colors duration-150 ${
+                active ? "font-semibold text-[#08201a]" : "text-ink-2 hover:text-ink"
+              }`}
+            >
+              {o.label}
+            </span>
           </motion.button>
         );
       })}

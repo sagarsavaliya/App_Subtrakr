@@ -1,8 +1,10 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { formatINR, monthlyEquivalent } from "@/lib/format";
 import { deleteSubscription, markPaid } from "./actions";
 import { SubscriptionRow } from "@/components/SubscriptionRow";
+import { DashboardEntityFilter } from "@/components/DashboardEntityFilter";
 
 type Sub = {
   id: string;
@@ -87,21 +89,9 @@ export default async function DashboardPage({
       </section>
 
       <div className="mt-6 flex flex-wrap items-center gap-2">
-        <Link
-          href="/app"
-          className={`rounded-full px-4 py-1.5 text-sm transition-transform duration-150 hover:scale-105 active:scale-95 ${!entityFilter ? "brand-gradient font-semibold text-[#08201a]" : "glass text-ink-2"}`}
-        >
-          All
-        </Link>
-        {(entities as Entity[] | null)?.map((e) => (
-          <Link
-            key={e.id}
-            href={`/app?entity=${e.id}`}
-            className={`rounded-full px-4 py-1.5 text-sm transition-transform duration-150 hover:scale-105 active:scale-95 ${entityFilter === e.id ? "brand-gradient font-semibold text-[#08201a]" : "glass text-ink-2"}`}
-          >
-            {e.name}
-          </Link>
-        ))}
+        <Suspense fallback={null}>
+          <DashboardEntityFilter entities={(entities as Entity[] | null) ?? []} />
+        </Suspense>
         <div className="flex-1" />
         <Link
           href="/app/new"

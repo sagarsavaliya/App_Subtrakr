@@ -142,7 +142,7 @@ export function ProfilePaymentMethodsSection({
       <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-sm font-semibold text-ink-2">Payment methods</h2>
         <div className="flex items-center gap-2">
-          <div className="w-40">
+          <div className="w-56 shrink-0">
             <CustomSelect
               name="entity_filter"
               defaultValue={entityId}
