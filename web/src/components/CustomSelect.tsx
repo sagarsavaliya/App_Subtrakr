@@ -162,7 +162,7 @@ export function CustomSelect({ name, options, defaultValue, placeholder, onChang
         onKeyDown={handleKeyDown}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className="glass flex w-full cursor-pointer items-center justify-between rounded-xl px-4 py-3 text-left text-sm text-ink outline-none transition-colors duration-200 hover:border-white/20 focus:border-glow/40"
+        className="glass flex w-full cursor-pointer items-center justify-between rounded-3xl px-4 py-2 text-left text-sm text-ink outline-none transition-colors duration-200 hover:border-white/20 focus:border-glow/40"
       >
         <span className={`min-w-0 truncate ${selected ? "" : "text-ink-3"}`}>
           {selected?.label ?? placeholder ?? "Select…"}

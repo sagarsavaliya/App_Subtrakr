@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
+import { useSlidingRect, LIQUID_TRANSITION } from "@/lib/useSlidingRect";
 
 const NAV = [
   ["/admin", "Overview"],
@@ -14,23 +15,27 @@ const NAV = [
 
 export function AdminNavLinks() {
   const pathname = usePathname();
+  // /admin itself must match exactly — every other admin route also
+  // starts with "/admin", which would otherwise mark Overview active
+  // everywhere.
+  const activeHref =
+    NAV.find(([href]) => (href === "/admin" ? pathname === href : pathname?.startsWith(href)))?.[0] ??
+    NAV[0][0];
+  const { containerRef, register, rect } = useSlidingRect<HTMLElement>(activeHref);
 
   return (
-    <nav className="flex flex-col gap-1">
+    <nav ref={containerRef} className="relative flex flex-col gap-1">
+      {rect && (
+        <motion.span
+          className="brand-gradient absolute rounded-xl"
+          animate={{ left: rect.left, top: rect.top, width: rect.width, height: rect.height }}
+          transition={LIQUID_TRANSITION}
+        />
+      )}
       {NAV.map(([href, label]) => {
-        // /admin itself must match exactly — every other admin route also
-        // starts with "/admin", which would otherwise mark Overview active
-        // everywhere.
-        const active = href === "/admin" ? pathname === href : pathname?.startsWith(href);
+        const active = href === activeHref;
         return (
-          <Link key={href} href={href} className="relative rounded-xl">
-            {active && (
-              <motion.span
-                layoutId="admin-nav-active"
-                transition={{ type: "spring", stiffness: 500, damping: 40 }}
-                className="brand-gradient absolute inset-0 rounded-xl"
-              />
-            )}
+          <Link key={href} ref={register(href)} href={href} className="relative z-10 rounded-xl">
             <span
               className={`relative block rounded-xl px-3 py-2 text-sm transition-colors duration-150 ${
                 active ? "font-semibold text-[#08201a]" : "text-ink-2 hover:bg-white/5 hover:text-ink"
