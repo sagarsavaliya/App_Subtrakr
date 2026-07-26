@@ -32,7 +32,13 @@ services:
     environment:
       GOTRUE_API_HOST: 0.0.0.0
       GOTRUE_API_PORT: 9999
-      API_EXTERNAL_URL: https://supabase.subtrakr.me
+      # Must include /auth/v1 — that's the only prefix Kong actually routes
+      # to GoTrue (see kong.yml.template's auth-v1-open service). Without
+      # it, GoTrue's self-generated links (ConfirmationURL etc.) point to
+      # bare /verify, which Kong 404s with "no Route matched with those
+      # values" — confirmed live: a brand-new signup's confirmation link
+      # hit exactly that error.
+      API_EXTERNAL_URL: https://supabase.subtrakr.me/auth/v1
       GOTRUE_DB_DRIVER: postgres
       GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${POSTGRES_PASSWORD}@db:5432/postgres
       GOTRUE_SITE_URL: https://supabase.subtrakr.me
@@ -69,9 +75,17 @@ services:
       # swaps in a typed 6-digit code ({{ .Token }}) so the email flow
       # matches the WhatsApp OTP flow's UX. GoTrue fetches this template
       # live over HTTP each send, so it's just a public static file, no
-      # secret involved.
+      # secret involved. MAGIC_LINK only covers signInWithOtp() for an
+      # ALREADY-CONFIRMED existing user (our PIN-reset email path) —
+      # GoTrue uses the separate CONFIRMATION template/subject below for a
+      # brand-new signInWithOtp({shouldCreateUser:true}) signup instead.
+      # Missing that was the actual bug: new signups got GoTrue's built-in
+      # default confirmation email (a bare link, no visible code, and
+      # landed in spam) instead of ever showing a typed code to enter.
       GOTRUE_MAILER_TEMPLATES_MAGIC_LINK: https://subtrakr.me/email-templates/otp.html
       GOTRUE_MAILER_SUBJECTS_MAGIC_LINK: "Your SubTrakr verification code"
+      GOTRUE_MAILER_TEMPLATES_CONFIRMATION: https://subtrakr.me/email-templates/otp.html
+      GOTRUE_MAILER_SUBJECTS_CONFIRMATION: "Your SubTrakr verification code"
       # Profile "add/verify email" flow (auth.updateUser({ email })) uses
       # this DIFFERENT template/subject pair from signup's magic-link one
       # above — same typed-code HTML, just its own subject line, and
