@@ -181,11 +181,11 @@ GRANT SELECT ON plans TO anon;
 -- already exist in prod from the original 3-tier seed.
 INSERT INTO plans (code, name, description, price_monthly, price_quarterly, price_half_yearly, price_yearly, max_entities, max_subscriptions, sort_order)
 VALUES
-  ('free', 'Free', 'Track up to 5 subscriptions on your personal entity.', 0, 0, 0, 0, 1, 5, 0),
-  ('starter', 'Starter', 'Up to 10 subscriptions on your personal entity.', 29, 79, 139, 239, 1, 10, 1),
-  ('pro', 'Personal', 'Unlimited subscriptions on your personal entity, GST export, invoice vault.', 49, 129, 229, 399, 1, NULL, 2),
-  ('business_lite', 'Business Lite', 'Unlimited subscriptions across your personal entity plus 2 business entities.', 99, 259, 459, 799, 3, NULL, 3),
-  ('team', 'Business', 'Unlimited subscriptions across your personal entity plus unlimited business entities.', 149, 389, 699, 1199, NULL, NULL, 4)
+  ('free', 'Free', 'Free forever, no card required.', 0, 0, 0, 0, 1, 5, 0),
+  ('starter', 'Starter', 'A bit more room to grow.', 29, 79, 139, 239, 1, 10, 1),
+  ('pro', 'Personal', 'Everything for your own subscriptions.', 49, 129, 229, 399, 1, NULL, 2),
+  ('business_lite', 'Business Lite', 'Personal plus two businesses.', 99, 259, 459, 799, 3, NULL, 3),
+  ('team', 'Business', 'Every business you run, one place.', 149, 389, 699, 1199, NULL, NULL, 4)
 ON CONFLICT (code) DO UPDATE SET
   name = EXCLUDED.name,
   description = EXCLUDED.description,
