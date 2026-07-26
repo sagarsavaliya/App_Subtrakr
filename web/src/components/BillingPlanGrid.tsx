@@ -12,6 +12,7 @@ import {
   effectiveMonthly,
   type BillingCycle,
 } from "@/lib/billingCycle";
+import { categoryOf, type PlanCategory } from "@/lib/planCategory";
 
 type Plan = {
   id: string;
@@ -26,16 +27,6 @@ type Plan = {
   max_subscriptions: number | null;
   sort_order: number;
 };
-
-type Category = "personal" | "business";
-
-/** Personal-only entity cap (exactly 1, always) vs. anything that adds
- *  business entities (a fixed extra allowance, or unlimited) — derived
- *  from max_entities rather than a hardcoded code list, so a future plan
- *  slots into the right tab automatically. */
-function categoryOf(plan: Plan): Category {
-  return plan.max_entities === 1 ? "personal" : "business";
-}
 
 /** One cycle picked once for the whole grid, instead of a repeated 4-way
  *  toggle on every card (that version both looked noisy and wrapped into
@@ -59,7 +50,7 @@ export function BillingPlanGrid({
 }) {
   const [cycle, setCycle] = useState<BillingCycle>("monthly");
   const currentPlan = plans.find((p) => p.code === currentCode);
-  const [category, setCategory] = useState<Category>(
+  const [category, setCategory] = useState<PlanCategory>(
     currentPlan ? categoryOf(currentPlan) : "personal",
   );
 

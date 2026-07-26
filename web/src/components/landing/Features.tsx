@@ -1,35 +1,43 @@
 "use client";
 
 import { motion } from "framer-motion";
+import {
+  BellIcon,
+  ReceiptIcon,
+  BuildingIcon,
+  ShareIcon,
+  CloudIcon,
+  PaperclipIcon,
+} from "@/components/icons";
 
 const FEATURES = [
   {
-    icon: "🔔",
+    icon: BellIcon,
     title: "Reminders before the charge",
     body: "Pick how many days of warning you want. SubTrakr nudges you before every renewal — cancel in time or budget for it, never be surprised.",
   },
   {
-    icon: "🧾",
+    icon: ReceiptIcon,
     title: "GST-ready exports",
     body: "One tap turns a month of business subscriptions into a clean PDF or CSV with GSTIN, HSN/SAC and 18% GST computed — ready for your CA.",
   },
   {
-    icon: "🏢",
+    icon: BuildingIcon,
     title: "Personal + business, separated",
     body: "Track Netflix next to your company's AWS bill without mixing them. Per-entity filters, budgets and reports keep both lives tidy.",
   },
   {
-    icon: "📲",
+    icon: ShareIcon,
     title: "Share a payment SMS, we log it",
     body: "Got a bank debit SMS? Share it to SubTrakr and it matches the subscription and marks it paid. No SMS-reading permissions, ever.",
   },
   {
-    icon: "☁️",
+    icon: CloudIcon,
     title: "Offline-first, synced everywhere",
     body: "Works instantly with zero connection, then syncs to your account. Phone, tablet, web — the same data, always current.",
   },
   {
-    icon: "📎",
+    icon: PaperclipIcon,
     title: "Invoice vault",
     body: "Attach the invoice PDF to any payment and find it at filing time — instead of digging through six months of email.",
   },
@@ -64,7 +72,9 @@ export function Features() {
             transition={{ duration: 0.5, delay: (i % 3) * 0.1 }}
             className="glass group rounded-3xl p-6 transition hover:border-glow/30"
           >
-            <span className="text-2xl">{f.icon}</span>
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-glow/15 text-glow">
+              <f.icon className="h-5 w-5" />
+            </span>
             <h3 className="mt-4 text-lg font-semibold">{f.title}</h3>
             <p className="mt-2 text-sm leading-relaxed text-ink-2">{f.body}</p>
           </motion.div>
