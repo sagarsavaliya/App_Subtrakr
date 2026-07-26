@@ -1,8 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAdminIdentity } from "@/lib/adminAuth";
-import { saveRazorpaySettings, saveWhatsAppSettings } from "../actions";
 import { WhatsAppTestButton } from "@/components/WhatsAppTestButton";
-import { ActionForm } from "@/components/ActionForm";
+import { RazorpaySettingsForm } from "@/components/admin/RazorpaySettingsForm";
+import { WhatsAppSettingsForm } from "@/components/admin/WhatsAppSettingsForm";
 
 export const dynamic = "force-dynamic";
 
@@ -32,9 +32,6 @@ export default async function AdminSettingsPage() {
   const waAccessToken = status("whatsapp_access_token");
   const waBusinessAccountId = status("whatsapp_business_account_id");
   const canEdit = admin?.role === "super_admin";
-
-  const inputClass =
-    "glass w-full rounded-lg px-3 py-2 text-sm outline-none placeholder:text-ink-3 focus:border-glow/40";
 
   return (
     <div className="max-w-2xl">
@@ -72,62 +69,7 @@ export default async function AdminSettingsPage() {
       </div>
 
       {canEdit ? (
-        <ActionForm
-          action={saveRazorpaySettings}
-          successMessage="Razorpay settings saved."
-          className="glass rounded-2xl p-5"
-        >
-          {(pending) => (
-            <>
-              <h2 className="mb-1 text-sm font-semibold">Update credentials</h2>
-              <p className="mb-4 text-xs text-ink-3">
-                Leave a field blank to keep its current value.
-              </p>
-              <div className="space-y-4">
-                <div>
-                  <label className="mb-1 block text-xs text-ink-2">
-                    Key ID (rzp_live_… or rzp_test_…)
-                  </label>
-                  <input
-                    name="key_id"
-                    placeholder={keyId.set ? keyId.display : "rzp_test_XXXXXXXX"}
-                    className={inputClass}
-                    autoComplete="off"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs text-ink-2">Key secret</label>
-                  <input
-                    name="key_secret"
-                    type="password"
-                    placeholder={keySecret.set ? "unchanged" : "secret"}
-                    className={inputClass}
-                    autoComplete="new-password"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs text-ink-2">
-                    Webhook secret
-                  </label>
-                  <input
-                    name="webhook_secret"
-                    type="password"
-                    placeholder={webhookSecret.set ? "unchanged" : "whsec…"}
-                    className={inputClass}
-                    autoComplete="new-password"
-                  />
-                </div>
-              </div>
-              <button
-                type="submit"
-                disabled={pending}
-                className="brand-gradient mt-5 cursor-pointer rounded-lg px-5 py-2 text-sm font-bold text-[#08201a] transition-transform duration-150 hover:scale-105 hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {pending ? "Saving…" : "Save settings"}
-              </button>
-            </>
-          )}
-        </ActionForm>
+        <RazorpaySettingsForm keyId={keyId} keySecret={keySecret} webhookSecret={webhookSecret} />
       ) : (
         <p className="glass rounded-2xl p-5 text-sm text-ink-2">
           Only a super admin can change these settings.
@@ -177,69 +119,11 @@ export default async function AdminSettingsPage() {
       </div>
 
       {canEdit ? (
-        <ActionForm
-          action={saveWhatsAppSettings}
-          successMessage="WhatsApp settings saved."
-          className="glass rounded-2xl p-5"
-        >
-          {(pending) => (
-            <>
-              <h2 className="mb-1 text-sm font-semibold">Update credentials</h2>
-              <p className="mb-4 text-xs text-ink-3">
-                From Meta Business Settings → System Users, generate a permanent
-                token scoped to whatsapp_business_messaging. Leave a field blank
-                to keep its current value.
-              </p>
-              <div className="space-y-4">
-                <div>
-                  <label className="mb-1 block text-xs text-ink-2">
-                    Phone number ID
-                  </label>
-                  <input
-                    name="phone_number_id"
-                    placeholder={
-                      waPhoneNumberId.set ? waPhoneNumberId.display : "1234567890123456"
-                    }
-                    className={inputClass}
-                    autoComplete="off"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs text-ink-2">
-                    Access token
-                  </label>
-                  <input
-                    name="access_token"
-                    type="password"
-                    placeholder={waAccessToken.set ? "unchanged" : "EAAG…"}
-                    className={inputClass}
-                    autoComplete="new-password"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs text-ink-2">
-                    Business account ID (optional, reference only)
-                  </label>
-                  <input
-                    name="business_account_id"
-                    placeholder={
-                      waBusinessAccountId.set ? waBusinessAccountId.display : "1234567890123456"
-                    }
-                    className={inputClass}
-                    autoComplete="off"
-                  />
-                </div>
-              </div>
-              <button
-                type="submit"
-                disabled={pending}
-                className="brand-gradient mt-5 cursor-pointer rounded-lg px-5 py-2 text-sm font-bold text-[#08201a] transition-transform duration-150 hover:scale-105 hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {pending ? "Saving…" : "Save settings"}
-              </button>
-            </>
-          )}
-        </ActionForm>
+        <WhatsAppSettingsForm
+          waPhoneNumberId={waPhoneNumberId}
+          waAccessToken={waAccessToken}
+          waBusinessAccountId={waBusinessAccountId}
+        />
       ) : (
         <p className="glass rounded-2xl p-5 text-sm text-ink-2">
           Only a super admin can change these settings.
