@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
+import { XIcon } from "@/components/icons";
 
 /** First real modal overlay in this app — everything else so far used
  *  either a native confirm() or an inline expanding form. Mark Paid needed
@@ -68,9 +69,9 @@ export function Modal({
               <button
                 onClick={onClose}
                 aria-label="Close"
-                className="glass rounded-full p-1.5 text-ink-3 hover:text-ink"
+                className="glass flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-3 hover:text-ink"
               >
-                ×
+                <XIcon className="h-3.5 w-3.5" />
               </button>
             </div>
             {children}

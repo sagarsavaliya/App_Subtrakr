@@ -11,6 +11,9 @@ type Props = {
   options: Option[];
   defaultValue?: string;
   placeholder?: string;
+  /** Only needed when a sibling field must react to the choice (e.g.
+   *  filtering payment methods by the currently-selected entity). */
+  onChange?: (value: string) => void;
 };
 
 /** Custom listbox replacing the native <select> — the browser's own
@@ -30,7 +33,7 @@ type Props = {
  *  goes. Confirmed live: the admin plan dropdown rendered visually
  *  underneath/overlapping the panel below it. Portaling to body escapes
  *  the local stacking context entirely, same fix as Modal.tsx. */
-export function CustomSelect({ name, options, defaultValue, placeholder }: Props) {
+export function CustomSelect({ name, options, defaultValue, placeholder, onChange }: Props) {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(defaultValue ?? options[0]?.value ?? "");
   const [highlighted, setHighlighted] = useState(0);
@@ -83,6 +86,11 @@ export function CustomSelect({ name, options, defaultValue, placeholder }: Props
     setHighlighted(Math.max(0, index));
   }
 
+  function select(v: string) {
+    setValue(v);
+    onChange?.(v);
+  }
+
   function handleKeyDown(e: React.KeyboardEvent) {
     if (!open) {
       if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") {
@@ -102,7 +110,7 @@ export function CustomSelect({ name, options, defaultValue, placeholder }: Props
       setHighlighted((h) => Math.max(0, h - 1));
     } else if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
-      setValue(options[highlighted].value);
+      select(options[highlighted].value);
       setOpen(false);
     }
   }
@@ -128,7 +136,7 @@ export function CustomSelect({ name, options, defaultValue, placeholder }: Props
               aria-selected={isSelected}
               onMouseEnter={() => setHighlighted(i)}
               onClick={() => {
-                setValue(o.value);
+                select(o.value);
                 setOpen(false);
               }}
               className={`flex cursor-pointer items-center justify-between rounded-xl px-3 py-2.5 text-sm transition-colors duration-150 ${
