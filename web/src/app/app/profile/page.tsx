@@ -31,10 +31,10 @@ export default async function ProfilePage() {
   const name = (user?.user_metadata?.full_name as string) ?? "—";
 
   return (
-    <div className="mx-auto max-w-lg">
+    <div className="mx-auto max-w-6xl">
       <h1 className="mb-6 text-xl font-semibold">Profile</h1>
 
-      <div className="glass mb-5 flex items-center gap-4 rounded-3xl p-6">
+      <div className="glass mb-6 flex items-center gap-4 rounded-3xl p-6">
         <div className="brand-gradient flex h-14 w-14 items-center justify-center rounded-2xl text-xl font-bold text-[#08201a]">
           {name.slice(0, 1).toUpperCase()}
         </div>
@@ -52,67 +52,70 @@ export default async function ProfilePage() {
         </div>
       </div>
 
-      <h2 className="mb-3 text-sm font-semibold text-ink-2">Email</h2>
-      <div className="mb-5">
-        <ProfileEmailSection
-          initialEmail={user?.email ?? null}
-          initialConfirmed={!!user?.email_confirmed_at}
-        />
-      </div>
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div>
+          <h2 className="mb-3 text-sm font-semibold text-ink-2">Email</h2>
+          <ProfileEmailSection
+            initialEmail={user?.email ?? null}
+            initialConfirmed={!!user?.email_confirmed_at}
+          />
 
-      <h2 className="mb-3 text-sm font-semibold text-ink-2">Mobile number</h2>
-      <div className="mb-5">
-        <ProfilePhoneSection initialPhone={user?.phone ?? null} />
-      </div>
-
-      <h2 className="mb-3 text-sm font-semibold text-ink-2">Payment methods</h2>
-      <p className="mb-3 text-xs text-ink-3">
-        Used when you mark a subscription paid — helps trace spend back to a
-        specific card, account, or wallet for GST/ITR filing.
-      </p>
-      <div className="mb-5">
-        <ProfilePaymentMethodsSection methods={paymentMethods ?? []} />
-      </div>
-
-      <h2 className="mb-3 text-sm font-semibold text-ink-2">Entities</h2>
-
-      <ul className="space-y-3">
-        {entities?.map((e) => (
-          <li key={e.id} className="glass flex items-center gap-3 rounded-2xl p-4">
-            <span
-              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold ${
-                e.type === "personal"
-                  ? "bg-personal/15 text-personal"
-                  : "bg-accent-a/15 text-glow"
-              }`}
-            >
-              {e.type === "company" ? (
-                <BuildingIcon className="h-5 w-5" />
-              ) : (
-                e.name.slice(0, 1).toUpperCase()
-              )}
-            </span>
-            <div>
-              <p className="text-sm font-medium">{e.name}</p>
-              <p className="text-xs text-ink-3">
-                {e.gst_number ? `GSTIN ${e.gst_number}` : e.type}
-              </p>
-            </div>
-          </li>
-        ))}
-      </ul>
-
-      {atLimit ? (
-        <div className="glass mt-4 rounded-2xl p-4 text-center text-sm text-ink-2">
-          Your plan allows {limit} {limit === 1 ? "entity" : "entities"}.{" "}
-          <Link href="/app/billing" className="text-glow hover:underline">
-            Upgrade
-          </Link>{" "}
-          to add another business.
+          <h2 className="mb-3 mt-6 text-sm font-semibold text-ink-2">Mobile number</h2>
+          <ProfilePhoneSection initialPhone={user?.phone ?? null} />
         </div>
-      ) : (
-        <AddEntityForm />
-      )}
+
+        <div>
+          <h2 className="mb-3 text-sm font-semibold text-ink-2">Payment methods</h2>
+          <p className="mb-3 text-xs text-ink-3">
+            Used when you mark a subscription paid — helps trace spend back
+            to a specific card, account, or wallet for GST/ITR filing.
+          </p>
+          <ProfilePaymentMethodsSection methods={paymentMethods ?? []} />
+        </div>
+
+        <div>
+          <h2 className="mb-3 text-sm font-semibold text-ink-2">Entities</h2>
+          <ul className="space-y-3">
+            {entities?.map((e) => (
+              <li key={e.id} className="glass flex items-center gap-3 rounded-2xl p-4">
+                <span
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold ${
+                    e.type === "personal"
+                      ? "bg-personal/15 text-personal"
+                      : "bg-accent-a/15 text-glow"
+                  }`}
+                >
+                  {e.type === "company" ? (
+                    <BuildingIcon className="h-5 w-5" />
+                  ) : (
+                    e.name.slice(0, 1).toUpperCase()
+                  )}
+                </span>
+                <div>
+                  <p className="text-sm font-medium">{e.name}</p>
+                  <p className="text-xs text-ink-3">
+                    {e.gst_number ? `GSTIN ${e.gst_number}` : e.type}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          {atLimit ? (
+            <div className="glass mt-3 rounded-2xl p-4 text-center text-sm text-ink-2">
+              Your plan allows {limit} {limit === 1 ? "entity" : "entities"}.{" "}
+              <Link href="/app/billing" className="text-glow hover:underline">
+                Upgrade
+              </Link>{" "}
+              to add another business.
+            </div>
+          ) : (
+            <div className="mt-3">
+              <AddEntityForm />
+            </div>
+          )}
+        </div>
+      </div>
 
       <p className="mt-8 text-xs text-ink-3">
         Manage subscriptions, reminders, and GST exports in the SubTrakr mobile
