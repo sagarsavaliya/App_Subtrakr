@@ -7,13 +7,20 @@ export const dynamic = "force-dynamic";
 export default async function SubscribersPage() {
   const db = createAdminClient();
 
-  const [usersRes, billingRes, subCountsRes] = await Promise.all([
+  const [usersRes, billingRes, subCountsRes, adminUsersRes] = await Promise.all([
     db.auth.admin.listUsers({ page: 1, perPage: 1000 }),
     db.from("subscriber_billing").select("user_id, status, current_period_end, plans(name)"),
     db.from("subscriptions").select("user_id"),
+    db.from("admin_users").select("user_id"),
   ]);
 
-  const users = usersRes.data?.users ?? [];
+  // Admin accounts aren't subscribers — excluding them here is also what
+  // stops an admin from ever showing up as a "Delete account" target on
+  // this list in the first place (previously the only thing standing
+  // between a stray click and deleting a live admin account was the
+  // confirm() dialog).
+  const adminIds = new Set((adminUsersRes.data ?? []).map((a) => a.user_id));
+  const users = (usersRes.data?.users ?? []).filter((u) => !adminIds.has(u.id));
   const billingByUser = new Map(
     (billingRes.data ?? []).map((b) => [b.user_id, b]),
   );

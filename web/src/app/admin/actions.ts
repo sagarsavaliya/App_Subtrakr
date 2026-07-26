@@ -60,6 +60,20 @@ export async function adminDeleteUser(formData: FormData): Promise<ActionResult>
   if (admin.role !== "super_admin") return { ok: false, message: "Super admin only." };
   const db = createAdminClient();
   const userId = String(formData.get("user_id"));
+
+  // The subscribers list already excludes admin accounts, but this is the
+  // real backstop — an admin account being deletable from this action at
+  // all is how a live admin got wiped by an accidental click before this
+  // check existed.
+  const { data: adminRow } = await db
+    .from("admin_users")
+    .select("id")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (adminRow) {
+    return { ok: false, message: "Can't delete an admin account from here." };
+  }
+
   const { error } = await db.auth.admin.deleteUser(userId);
   if (error) return { ok: false, message: error.message };
   revalidatePath("/admin/subscribers");
