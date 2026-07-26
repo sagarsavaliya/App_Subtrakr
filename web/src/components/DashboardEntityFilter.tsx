@@ -9,7 +9,9 @@ type Entity = { id: string; name: string; type: string };
 
 /** Same liquid sliding-pill technique as AppNavLinks' tab indicator — one
  *  shared motion.span glides between chips instead of each link abruptly
- *  recoloring on click. */
+ *  recoloring on click. Inactive chips carry no background of their own
+ *  (matching AppNavLinks exactly), so the moving pill is the only shape
+ *  in the row and the slide/stretch actually reads as motion. */
 export function DashboardEntityFilter({ entities }: { entities: Entity[] }) {
   const searchParams = useSearchParams();
   const entityFilter = searchParams.get("entity");
@@ -36,7 +38,6 @@ export function DashboardEntityFilter({ entities }: { entities: Entity[] }) {
             href={item.id ? `/app?entity=${item.id}` : "/app"}
             className="relative z-10 rounded-full px-4 py-1.5 text-sm transition-transform duration-150 hover:scale-105 active:scale-95"
           >
-            {!active && <span className="glass absolute inset-0 -z-10 rounded-full" />}
             <span
               className={`relative transition-colors duration-150 ${
                 active ? "font-semibold text-[#08201a]" : "text-ink-2 hover:text-ink"
