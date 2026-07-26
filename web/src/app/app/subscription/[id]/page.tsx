@@ -105,7 +105,7 @@ export default async function SubscriptionDetailPage({
           [sub.is_auto_debit ? "On" : "Off", "Auto-debit"],
         ].map(([value, label]) => (
           <div key={label} className="glass rounded-2xl p-4">
-            <p className="font-mono text-lg font-semibold">{value}</p>
+            <p className="font-mono text-lg font-semibold text-ink">{value}</p>
             <p className="mt-1 text-xs text-ink-2">{label}</p>
           </div>
         ))}

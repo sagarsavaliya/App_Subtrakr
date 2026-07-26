@@ -139,7 +139,7 @@ export default async function SubscriberDetailPage({
             key={label}
             className="glass rounded-2xl p-4 transition-transform duration-200 hover:-translate-y-0.5"
           >
-            <p className="font-mono text-lg font-semibold">{value}</p>
+            <p className="font-mono text-lg font-semibold text-ink">{value}</p>
             <p className="mt-1 text-xs text-ink-2">{label}</p>
           </div>
         ))}

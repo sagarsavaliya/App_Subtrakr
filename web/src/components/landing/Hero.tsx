@@ -106,7 +106,7 @@ export function Hero() {
               ["5", "Auto-debit"],
             ].map(([v, l]) => (
               <div key={l} className="glass rounded-xl py-2">
-                <p className="font-mono text-base">{v}</p>
+                <p className="font-mono text-base text-ink">{v}</p>
                 <p className="text-[10px] text-ink-2">{l}</p>
               </div>
             ))}

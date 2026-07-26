@@ -79,7 +79,7 @@ export default async function DashboardPage({
             ],
           ].map(([v, l]) => (
             <div key={l} className="glass rounded-2xl p-3">
-              <p className="font-mono text-lg">{v}</p>
+              <p className="font-mono text-lg text-ink">{v}</p>
               <p className="text-xs text-ink-2">{l}</p>
             </div>
           ))}
