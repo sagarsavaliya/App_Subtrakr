@@ -39,16 +39,22 @@ function autoLabel(type: string, formData: FormData): string {
   }
 }
 
-export async function addPaymentMethod(formData: FormData): Promise<ActionResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+type ParsedFields = {
+  type: string;
+  bankName: string | null;
+  cardNetwork: string | null;
+  lastFour: string | null;
+  upiId: string | null;
+  walletName: string | null;
+  walletMobile: string | null;
+  label: string;
+};
 
+/** Shared by add and update — same fields, same validation either way. */
+function parseAndValidate(formData: FormData): ParsedFields | { error: string } {
   const type = str(formData, "type");
   if (!["credit_card", "debit_card", "upi", "bank_transfer", "wallet"].includes(type)) {
-    return { ok: false, message: "Choose a payment method type." };
+    return { error: "Choose a payment method type." };
   }
 
   const bankName = str(formData, "bank_name") || null;
@@ -59,38 +65,50 @@ export async function addPaymentMethod(formData: FormData): Promise<ActionResult
   const walletMobile = str(formData, "wallet_mobile") || null;
 
   if ((type === "credit_card" || type === "debit_card") && (!bankName || !lastFour)) {
-    return { ok: false, message: "Enter the bank/issuer and last 4 digits." };
+    return { error: "Enter the bank/issuer and last 4 digits." };
   }
   if (lastFour && !/^\d{4}$/.test(lastFour)) {
-    return { ok: false, message: "Last 4 digits must be exactly 4 numbers." };
+    return { error: "Last 4 digits must be exactly 4 numbers." };
   }
   if (type === "upi" && (!upiId || !upiId.includes("@"))) {
-    return { ok: false, message: "Enter a valid UPI ID (e.g. name@bank)." };
+    return { error: "Enter a valid UPI ID (e.g. name@bank)." };
   }
   if (type === "bank_transfer" && !bankName) {
-    return { ok: false, message: "Enter the bank name." };
+    return { error: "Enter the bank name." };
   }
   if (type === "wallet" && (!walletName || !walletMobile)) {
-    return { ok: false, message: "Enter the wallet provider and its linked mobile number." };
+    return { error: "Enter the wallet provider and its linked mobile number." };
   }
 
   const label = str(formData, "label") || autoLabel(type, formData);
-  const makeDefault = formData.get("is_default") === "on";
+  return { type, bankName, cardNetwork, lastFour, upiId, walletName, walletMobile, label };
+}
 
+export async function addPaymentMethod(formData: FormData): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const parsed = parseAndValidate(formData);
+  if ("error" in parsed) return { ok: false, message: parsed.error };
+
+  const makeDefault = formData.get("is_default") === "on";
   if (makeDefault) {
     await supabase.from("payment_methods").update({ is_default: false }).eq("user_id", user.id);
   }
 
   const { error } = await supabase.from("payment_methods").insert({
     user_id: user.id,
-    type,
-    label,
-    bank_name: bankName,
-    card_network: cardNetwork,
-    last_four: lastFour,
-    upi_id: upiId,
-    wallet_name: walletName,
-    wallet_mobile: walletMobile,
+    type: parsed.type,
+    label: parsed.label,
+    bank_name: parsed.bankName,
+    card_network: parsed.cardNetwork,
+    last_four: parsed.lastFour,
+    upi_id: parsed.upiId,
+    wallet_name: parsed.walletName,
+    wallet_mobile: parsed.walletMobile,
     is_default: makeDefault,
   });
   if (error) {
@@ -99,7 +117,52 @@ export async function addPaymentMethod(formData: FormData): Promise<ActionResult
   }
 
   revalidatePath("/app/profile");
-  return { ok: true, message: `${label} added.` };
+  return { ok: true, message: `${parsed.label} added.` };
+}
+
+export async function updatePaymentMethod(formData: FormData): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const id = str(formData, "id");
+  if (!id) return { ok: false, message: "Missing payment method." };
+
+  const parsed = parseAndValidate(formData);
+  if ("error" in parsed) return { ok: false, message: parsed.error };
+
+  const makeDefault = formData.get("is_default") === "on";
+  if (makeDefault) {
+    await supabase
+      .from("payment_methods")
+      .update({ is_default: false })
+      .eq("user_id", user.id)
+      .neq("id", id);
+  }
+
+  const { error } = await supabase
+    .from("payment_methods")
+    .update({
+      type: parsed.type,
+      label: parsed.label,
+      bank_name: parsed.bankName,
+      card_network: parsed.cardNetwork,
+      last_four: parsed.lastFour,
+      upi_id: parsed.upiId,
+      wallet_name: parsed.walletName,
+      wallet_mobile: parsed.walletMobile,
+      is_default: makeDefault,
+    })
+    .eq("id", id);
+  if (error) {
+    console.error("updatePaymentMethod failed:", error.message);
+    return { ok: false, message: "Could not save that payment method. Try again." };
+  }
+
+  revalidatePath("/app/profile");
+  return { ok: true, message: `${parsed.label} updated.` };
 }
 
 export async function deletePaymentMethod(formData: FormData): Promise<ActionResult> {

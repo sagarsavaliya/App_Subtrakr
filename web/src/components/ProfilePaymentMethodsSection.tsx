@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { deletePaymentMethod, setDefaultPaymentMethod } from "@/app/app/paymentMethodActions";
+import { deletePaymentMethod } from "@/app/app/paymentMethodActions";
 import { useServerAction } from "@/lib/useServerAction";
 import { PaymentMethodForm } from "@/components/PaymentMethodForm";
+import { Modal } from "@/components/Modal";
+import { PencilIcon, TrashIcon } from "@/components/icons";
 
 export type PaymentMethod = {
   id: string;
@@ -45,23 +47,20 @@ function detailLine(m: PaymentMethod): string {
   }
 }
 
-function Row({ method }: { method: PaymentMethod }) {
+function Card({ method, onEdit }: { method: PaymentMethod; onEdit: () => void }) {
   const router = useRouter();
   const del = useServerAction(deletePaymentMethod, {
     successMessage: "Removed.",
     onSuccess: () => router.refresh(),
   });
-  const setDefault = useServerAction(setDefaultPaymentMethod, {
-    onSuccess: () => router.refresh(),
-  });
 
   return (
-    <li className="glass flex items-center justify-between gap-3 rounded-2xl p-4">
-      <div className="min-w-0">
+    <li className="group glass relative overflow-hidden rounded-2xl p-4">
+      <div className="min-w-0 pr-16">
         <p className="flex items-center gap-2 text-sm font-medium">
-          {method.label}
+          <span className="truncate">{method.label}</span>
           {method.is_default && (
-            <span className="rounded-full bg-glow/15 px-2 py-0.5 text-[10px] font-semibold text-glow">
+            <span className="shrink-0 rounded-full bg-glow/15 px-2 py-0.5 text-[10px] font-semibold text-glow">
               Default
             </span>
           )}
@@ -70,20 +69,17 @@ function Row({ method }: { method: PaymentMethod }) {
           {TYPE_LABEL[method.type] ?? method.type} · {detailLine(method)}
         </p>
       </div>
-      <div className="flex shrink-0 items-center gap-2">
-        {!method.is_default && (
-          <button
-            onClick={() => {
-              const fd = new FormData();
-              fd.set("id", method.id);
-              setDefault.run(fd);
-            }}
-            disabled={setDefault.pending}
-            className="text-xs text-glow hover:underline disabled:opacity-50"
-          >
-            Set default
-          </button>
-        )}
+
+      {/* Hover-revealed actions — always visible on touch devices (no
+          hover state to reveal them otherwise) via group-focus-within. */}
+      <div className="absolute right-3 top-3 flex items-center gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
+        <button
+          onClick={onEdit}
+          aria-label={`Edit ${method.label}`}
+          className="glass rounded-full p-2 text-ink-3 transition-colors hover:text-glow"
+        >
+          <PencilIcon className="h-3.5 w-3.5" />
+        </button>
         <button
           onClick={() => {
             if (confirm(`Remove ${method.label}?`)) {
@@ -93,10 +89,10 @@ function Row({ method }: { method: PaymentMethod }) {
             }
           }}
           disabled={del.pending}
-          className="glass rounded-full p-2 text-ink-3 transition-colors hover:text-overdue disabled:opacity-50"
           aria-label={`Remove ${method.label}`}
+          className="glass rounded-full p-2 text-ink-3 transition-colors hover:text-overdue disabled:opacity-50"
         >
-          ×
+          <TrashIcon className="h-3.5 w-3.5" />
         </button>
       </div>
     </li>
@@ -105,38 +101,53 @@ function Row({ method }: { method: PaymentMethod }) {
 
 /** How the subscriber actually pays for things — reusable across every
  *  "Mark paid" so payments trace back to a specific card/account/wallet,
- *  useful for splitting personal vs business spend at ITR/GST time. */
+ *  useful for splitting personal vs business spend at ITR/GST time.
+ *  Add/edit both happen in the same modal (PaymentMethodForm), matching
+ *  the rest of the redesigned profile page. */
 export function ProfilePaymentMethodsSection({ methods }: { methods: PaymentMethod[] }) {
   const router = useRouter();
-  const [adding, setAdding] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<PaymentMethod | null>(null);
+
+  function openAdd() {
+    setEditing(null);
+    setOpen(true);
+  }
+
+  function openEdit(m: PaymentMethod) {
+    setEditing(m);
+    setOpen(true);
+  }
+
+  function onFormDone() {
+    setOpen(false);
+    router.refresh();
+  }
 
   return (
     <div>
       {methods.length > 0 && (
-        <ul className="mb-3 space-y-2">
+        <ul className="mb-3 grid gap-3 sm:grid-cols-2">
           {methods.map((m) => (
-            <Row key={m.id} method={m} />
+            <Card key={m.id} method={m} onEdit={() => openEdit(m)} />
           ))}
         </ul>
       )}
 
-      {adding ? (
-        <PaymentMethodForm
-          onDone={() => {
-            setAdding(false);
-            router.refresh();
-          }}
-        />
-      ) : (
-        <button
-          onClick={() => setAdding(true)}
-          className="glass w-full rounded-2xl p-4 text-center text-sm text-ink-2 transition-colors hover:border-glow/30 hover:text-ink"
-        >
-          {methods.length === 0
-            ? "Add your first payment method"
-            : "+ Add another payment method"}
-        </button>
-      )}
+      <button
+        onClick={openAdd}
+        className="glass w-full rounded-2xl p-4 text-center text-sm text-ink-2 transition-colors hover:border-glow/30 hover:text-ink"
+      >
+        {methods.length === 0 ? "Add your first payment method" : "+ Add another payment method"}
+      </button>
+
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title={editing ? "Edit payment method" : "Add payment method"}
+      >
+        <PaymentMethodForm existing={editing ?? undefined} onDone={onFormDone} />
+      </Modal>
     </div>
   );
 }

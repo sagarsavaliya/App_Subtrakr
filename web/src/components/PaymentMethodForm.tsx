@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { addPaymentMethod } from "@/app/app/paymentMethodActions";
+import { addPaymentMethod, updatePaymentMethod } from "@/app/app/paymentMethodActions";
 import { useServerAction } from "@/lib/useServerAction";
 import { ChipSelect } from "@/components/ChipSelect";
+import type { PaymentMethod } from "@/components/ProfilePaymentMethodsSection";
 
 const TYPE_OPTIONS = [
   { value: "credit_card", label: "Credit card" },
@@ -44,17 +45,31 @@ const WALLETS = ["Paytm", "PhonePe", "Amazon Pay", "MobiKwik", "Freecharge", "Ai
 const inputClass =
   "glass w-full rounded-xl px-4 py-2.5 text-sm outline-none placeholder:text-ink-3 focus:border-glow/40";
 
-export function PaymentMethodForm({ onDone }: { onDone: () => void }) {
-  const [type, setType] = useState("credit_card");
-  const { run, pending } = useServerAction(addPaymentMethod, { onSuccess: onDone });
+/** Shared by both the "add" and "edit" flows — same fields, same
+ *  validation, just a different action underneath (edit sends the row's
+ *  id and calls updatePaymentMethod instead of addPaymentMethod).
+ *  Rendered inside a Modal, so no own container/cancel button here. */
+export function PaymentMethodForm({
+  existing,
+  onDone,
+}: {
+  existing?: PaymentMethod;
+  onDone: () => void;
+}) {
+  const [type, setType] = useState(existing?.type ?? "credit_card");
+  const { run, pending } = useServerAction(existing ? updatePaymentMethod : addPaymentMethod, {
+    onSuccess: onDone,
+  });
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    run(new FormData(e.currentTarget));
+    const fd = new FormData(e.currentTarget);
+    if (existing) fd.set("id", existing.id);
+    run(fd);
   }
 
   return (
-    <form onSubmit={onSubmit} className="glass rounded-2xl p-4">
+    <form onSubmit={onSubmit}>
       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-3">Type</p>
       <div className="mb-4">
         <ChipSelect name="type" options={TYPE_OPTIONS} defaultValue={type} onChange={setType} />
@@ -66,18 +81,24 @@ export function PaymentMethodForm({ onDone }: { onDone: () => void }) {
             name="bank_name"
             list="banks"
             placeholder="Issuing bank"
+            defaultValue={existing?.bank_name ?? ""}
             required
             className={inputClass}
           />
           <div>
             <p className="mb-2 text-xs text-ink-2">Card network</p>
-            <ChipSelect name="card_network" options={CARD_NETWORKS} defaultValue="Visa" />
+            <ChipSelect
+              name="card_network"
+              options={CARD_NETWORKS}
+              defaultValue={existing?.card_network ?? "Visa"}
+            />
           </div>
           <input
             name="last_four"
             inputMode="numeric"
             maxLength={4}
             placeholder="Last 4 digits"
+            defaultValue={existing?.last_four ?? ""}
             required
             className={inputClass}
           />
@@ -89,6 +110,7 @@ export function PaymentMethodForm({ onDone }: { onDone: () => void }) {
           <input
             name="upi_id"
             placeholder="UPI ID, e.g. name@okhdfcbank"
+            defaultValue={existing?.upi_id ?? ""}
             required
             className={inputClass}
           />
@@ -101,6 +123,7 @@ export function PaymentMethodForm({ onDone }: { onDone: () => void }) {
             name="bank_name"
             list="banks"
             placeholder="Bank name"
+            defaultValue={existing?.bank_name ?? ""}
             required
             className={inputClass}
           />
@@ -109,6 +132,7 @@ export function PaymentMethodForm({ onDone }: { onDone: () => void }) {
             inputMode="numeric"
             maxLength={4}
             placeholder="Last 4 digits of account number (optional)"
+            defaultValue={existing?.last_four ?? ""}
             className={inputClass}
           />
         </div>
@@ -120,6 +144,7 @@ export function PaymentMethodForm({ onDone }: { onDone: () => void }) {
             name="wallet_name"
             list="wallets"
             placeholder="Wallet provider"
+            defaultValue={existing?.wallet_name ?? ""}
             required
             className={inputClass}
           />
@@ -128,6 +153,7 @@ export function PaymentMethodForm({ onDone }: { onDone: () => void }) {
             inputMode="numeric"
             maxLength={10}
             placeholder="Linked mobile number"
+            defaultValue={existing?.wallet_mobile ?? ""}
             required
             className={inputClass}
           />
@@ -148,26 +174,27 @@ export function PaymentMethodForm({ onDone }: { onDone: () => void }) {
       <input
         name="label"
         placeholder="Custom label (optional)"
+        defaultValue={existing?.label ?? ""}
         className={`${inputClass} mb-3`}
       />
 
       <label className="mb-4 flex items-center gap-2 text-xs text-ink-2">
-        <input type="checkbox" name="is_default" className="h-4 w-4" />
+        <input
+          type="checkbox"
+          name="is_default"
+          defaultChecked={existing?.is_default ?? false}
+          className="h-4 w-4"
+        />
         Set as default
       </label>
 
-      <div className="flex gap-3">
-        <button
-          type="submit"
-          disabled={pending}
-          className="brand-gradient rounded-xl px-4 py-2 text-sm font-bold text-[#08201a] transition hover:opacity-90 disabled:opacity-50"
-        >
-          {pending ? "Saving…" : "Save payment method"}
-        </button>
-        <button type="button" onClick={onDone} className="text-xs text-ink-3 hover:text-ink-2">
-          Cancel
-        </button>
-      </div>
+      <button
+        type="submit"
+        disabled={pending}
+        className="brand-gradient w-full rounded-xl px-4 py-2 text-sm font-bold text-[#08201a] transition hover:opacity-90 disabled:opacity-50"
+      >
+        {pending ? "Saving…" : existing ? "Save changes" : "Save payment method"}
+      </button>
     </form>
   );
 }

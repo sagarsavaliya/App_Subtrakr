@@ -34,87 +34,75 @@ export default async function ProfilePage() {
     <div className="mx-auto max-w-6xl">
       <h1 className="mb-6 text-xl font-semibold">Profile</h1>
 
-      <div className="glass mb-6 flex items-center gap-4 rounded-3xl p-6">
-        <div className="brand-gradient flex h-14 w-14 items-center justify-center rounded-2xl text-xl font-bold text-[#08201a]">
-          {name.slice(0, 1).toUpperCase()}
+      {/* Email/mobile live inline here (not their own boxed rows below) —
+          the card has room to spare, and they're both "who you are"
+          alongside the name, not a separate concern. */}
+      <div className="glass mb-8 flex flex-col gap-5 rounded-3xl p-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-4">
+          <div className="brand-gradient flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-xl font-bold text-[#08201a]">
+            {name.slice(0, 1).toUpperCase()}
+          </div>
+          <div>
+            <p className="text-lg font-semibold">{name}</p>
+            {user?.created_at && (
+              <p className="mt-0.5 text-xs text-ink-3">
+                Member since {formatDate(user.created_at)}
+              </p>
+            )}
+          </div>
         </div>
-        <div>
-          <p className="text-lg font-semibold">{name}</p>
-          <p className="text-sm text-ink-2">
-            {user?.email ??
-              (user?.phone ? `+${user.phone.replace(/^\+/, "")}` : "")}
-          </p>
-          {user?.created_at && (
-            <p className="mt-0.5 text-xs text-ink-3">
-              Member since {formatDate(user.created_at)}
-            </p>
-          )}
-        </div>
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div>
-          <h2 className="mb-3 text-sm font-semibold text-ink-2">Email</h2>
+        <div className="flex flex-col gap-2 sm:items-end">
           <ProfileEmailSection
             initialEmail={user?.email ?? null}
             initialConfirmed={!!user?.email_confirmed_at}
           />
-
-          <h2 className="mb-3 mt-6 text-sm font-semibold text-ink-2">Mobile number</h2>
           <ProfilePhoneSection initialPhone={user?.phone ?? null} />
         </div>
+      </div>
 
-        <div>
-          <h2 className="mb-3 text-sm font-semibold text-ink-2">Payment methods</h2>
-          <p className="mb-3 text-xs text-ink-3">
-            Used when you mark a subscription paid — helps trace spend back
-            to a specific card, account, or wallet for GST/ITR filing.
-          </p>
-          <ProfilePaymentMethodsSection methods={paymentMethods ?? []} />
-        </div>
+      <h2 className="mb-3 text-sm font-semibold text-ink-2">Payment methods</h2>
+      <p className="mb-3 text-xs text-ink-3">
+        Used when you mark a subscription paid — helps trace spend back to a
+        specific card, account, or wallet for GST/ITR filing.
+      </p>
+      <ProfilePaymentMethodsSection methods={paymentMethods ?? []} />
 
-        <div>
-          <h2 className="mb-3 text-sm font-semibold text-ink-2">Entities</h2>
-          <ul className="space-y-3">
-            {entities?.map((e) => (
-              <li key={e.id} className="glass flex items-center gap-3 rounded-2xl p-4">
-                <span
-                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold ${
-                    e.type === "personal"
-                      ? "bg-personal/15 text-personal"
-                      : "bg-accent-a/15 text-glow"
-                  }`}
-                >
-                  {e.type === "company" ? (
-                    <BuildingIcon className="h-5 w-5" />
-                  ) : (
-                    e.name.slice(0, 1).toUpperCase()
-                  )}
-                </span>
-                <div>
-                  <p className="text-sm font-medium">{e.name}</p>
-                  <p className="text-xs text-ink-3">
-                    {e.gst_number ? `GSTIN ${e.gst_number}` : e.type}
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ul>
-
-          {atLimit ? (
-            <div className="glass mt-3 rounded-2xl p-4 text-center text-sm text-ink-2">
-              Your plan allows {limit} {limit === 1 ? "entity" : "entities"}.{" "}
-              <Link href="/app/billing" className="text-glow hover:underline">
-                Upgrade
-              </Link>{" "}
-              to add another business.
+      <h2 className="mb-3 mt-8 text-sm font-semibold text-ink-2">Entities</h2>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {entities?.map((e) => (
+          <div key={e.id} className="glass flex items-center gap-3 rounded-2xl p-4">
+            <span
+              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold ${
+                e.type === "personal"
+                  ? "bg-personal/15 text-personal"
+                  : "bg-accent-a/15 text-glow"
+              }`}
+            >
+              {e.type === "company" ? (
+                <BuildingIcon className="h-5 w-5" />
+              ) : (
+                e.name.slice(0, 1).toUpperCase()
+              )}
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">{e.name}</p>
+              <p className="truncate text-xs text-ink-3">
+                {e.gst_number ? `GSTIN ${e.gst_number}` : e.type}
+              </p>
             </div>
-          ) : (
-            <div className="mt-3">
-              <AddEntityForm />
-            </div>
-          )}
-        </div>
+          </div>
+        ))}
+
+        {atLimit ? (
+          <div className="glass flex items-center justify-center rounded-2xl p-4 text-center text-sm text-ink-2">
+            Your plan allows {limit} {limit === 1 ? "entity" : "entities"}.{" "}
+            <Link href="/app/billing" className="text-glow hover:underline">
+              Upgrade
+            </Link>
+          </div>
+        ) : (
+          <AddEntityForm />
+        )}
       </div>
 
       <p className="mt-8 text-xs text-ink-3">
