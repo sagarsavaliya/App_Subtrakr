@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 
 type Option = { value: string; label: string };
@@ -17,12 +18,28 @@ type Props = {
  *  chevron/checkmark) beyond the closed trigger, which is what made the
  *  old dropdown look generic. Submits through a hidden input with the same
  *  `name`, so the surrounding <form action={serverAction}> and its FormData
- *  shape need no changes at all. */
+ *  shape need no changes at all.
+ *
+ *  The open panel renders through a portal into document.body, positioned
+ *  by measuring the trigger — NOT as a plain `absolute` child. `.glass`
+ *  (backdrop-filter) gives its element its own stacking context, so a
+ *  z-index set on a descendant only wins against OTHER descendants of that
+ *  same `.glass` box; a later sibling `.glass` panel (e.g. admin's
+ *  "Entities" card sitting right below "Plan") paints its entire stacking
+ *  context on top regardless, no matter how high the dropdown's z-index
+ *  goes. Confirmed live: the admin plan dropdown rendered visually
+ *  underneath/overlapping the panel below it. Portaling to body escapes
+ *  the local stacking context entirely, same fix as Modal.tsx. */
 export function CustomSelect({ name, options, defaultValue, placeholder }: Props) {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(defaultValue ?? options[0]?.value ?? "");
   const [highlighted, setHighlighted] = useState(0);
+  const [rect, setRect] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [mounted, setMounted] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => setMounted(true), []);
 
   const selected = options.find((o) => o.value === value);
 
@@ -35,6 +52,21 @@ export function CustomSelect({ name, options, defaultValue, placeholder }: Props
     document.addEventListener("mousedown", onClickOutside);
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    function updateRect() {
+      const r = triggerRef.current?.getBoundingClientRect();
+      if (r) setRect({ top: r.bottom + 8, left: r.left, width: r.width });
+    }
+    updateRect();
+    window.addEventListener("scroll", updateRect, true);
+    window.addEventListener("resize", updateRect);
+    return () => {
+      window.removeEventListener("scroll", updateRect, true);
+      window.removeEventListener("resize", updateRect);
+    };
+  }, [open]);
 
   function openAt(index: number) {
     setOpen(true);
@@ -65,10 +97,47 @@ export function CustomSelect({ name, options, defaultValue, placeholder }: Props
     }
   }
 
+  const panel = open && rect && mounted && (
+    <AnimatePresence>
+      <motion.ul
+        role="listbox"
+        initial={{ opacity: 0, y: -6, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: -6, scale: 0.98 }}
+        transition={{ duration: 0.15, ease: "easeOut" }}
+        style={{ position: "fixed", top: rect.top, left: rect.left, width: rect.width }}
+        className="z-50 max-h-60 overflow-auto rounded-2xl border border-white/10 bg-elevated2 p-1.5 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.65)]"
+      >
+        {options.map((o, i) => {
+          const isSelected = o.value === value;
+          return (
+            <li
+              key={o.value}
+              role="option"
+              aria-selected={isSelected}
+              onMouseEnter={() => setHighlighted(i)}
+              onClick={() => {
+                setValue(o.value);
+                setOpen(false);
+              }}
+              className={`flex cursor-pointer items-center justify-between rounded-xl px-3 py-2.5 text-sm transition-colors duration-150 ${
+                i === highlighted ? "bg-glow/10 text-ink" : "text-ink-2"
+              } ${isSelected ? "font-medium text-glow" : ""}`}
+            >
+              {o.label}
+              {isSelected && <CheckIcon />}
+            </li>
+          );
+        })}
+      </motion.ul>
+    </AnimatePresence>
+  );
+
   return (
     <div ref={rootRef} className="relative">
       <input type="hidden" name={name} value={value} />
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => (open ? setOpen(false) : openAt(options.findIndex((o) => o.value === value)))}
         onKeyDown={handleKeyDown}
@@ -82,40 +151,7 @@ export function CustomSelect({ name, options, defaultValue, placeholder }: Props
         <ChevronIcon open={open} />
       </button>
 
-      <AnimatePresence>
-        {open && (
-          <motion.ul
-            role="listbox"
-            initial={{ opacity: 0, y: -6, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -6, scale: 0.98 }}
-            transition={{ duration: 0.15, ease: "easeOut" }}
-            className="absolute z-30 mt-2 max-h-60 w-full overflow-auto rounded-2xl border border-white/10 bg-elevated2 p-1.5 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.65)]"
-          >
-            {options.map((o, i) => {
-              const isSelected = o.value === value;
-              return (
-                <li
-                  key={o.value}
-                  role="option"
-                  aria-selected={isSelected}
-                  onMouseEnter={() => setHighlighted(i)}
-                  onClick={() => {
-                    setValue(o.value);
-                    setOpen(false);
-                  }}
-                  className={`flex cursor-pointer items-center justify-between rounded-xl px-3 py-2.5 text-sm transition-colors duration-150 ${
-                    i === highlighted ? "bg-glow/10 text-ink" : "text-ink-2"
-                  } ${isSelected ? "font-medium text-glow" : ""}`}
-                >
-                  {o.label}
-                  {isSelected && <CheckIcon />}
-                </li>
-              );
-            })}
-          </motion.ul>
-        )}
-      </AnimatePresence>
+      {mounted && panel && createPortal(panel, document.body)}
     </div>
   );
 }
