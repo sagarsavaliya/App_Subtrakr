@@ -1,0 +1,142 @@
+"use client";
+
+import { useState } from "react";
+import { formatINR } from "@/lib/format";
+import { UpgradeButton } from "@/components/UpgradeButton";
+import { DowngradeButton } from "@/components/DowngradeButton";
+import {
+  BILLING_CYCLES,
+  cycleLabel,
+  cycleSuffix,
+  priceForCycle,
+  effectiveMonthly,
+  type BillingCycle,
+} from "@/lib/billingCycle";
+
+type Plan = {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  price_monthly: number;
+  price_quarterly: number;
+  price_half_yearly: number;
+  price_yearly: number;
+  max_entities: number | null;
+  max_subscriptions: number | null;
+  sort_order: number;
+};
+
+/** One cycle picked once for the whole grid, instead of a repeated 4-way
+ *  toggle on every card (that version both looked noisy and wrapped into
+ *  an ugly vertical stack in a narrow card). Cards themselves only show
+ *  the price for whichever cycle is selected — the other three aren't
+ *  duplicated as extra text underneath anymore. */
+export function BillingPlanGrid({
+  plans,
+  currentCode,
+  currentSortOrder,
+  daysRemaining,
+  paymentsReady,
+}: {
+  plans: Plan[];
+  currentCode: string;
+  currentSortOrder: number;
+  daysRemaining: number | null;
+  paymentsReady: boolean;
+}) {
+  const [cycle, setCycle] = useState<BillingCycle>("monthly");
+
+  return (
+    <div>
+      <div className="mb-8 flex justify-center">
+        <div className="glass inline-flex gap-1 rounded-full p-1">
+          {BILLING_CYCLES.map((c) => (
+            <button
+              key={c}
+              onClick={() => setCycle(c)}
+              className={`rounded-full px-4 py-1.5 text-sm transition-colors ${
+                cycle === c ? "brand-gradient font-semibold text-[#08201a]" : "text-ink-2 hover:text-ink"
+              }`}
+            >
+              {cycleLabel(c)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap justify-center gap-5">
+        {plans.map((plan) => {
+          const isCurrent = plan.code === currentCode;
+          const highlight = plan.code === "pro";
+          const isFree = plan.sort_order === 0;
+          const price = priceForCycle(plan, cycle);
+
+          return (
+            <div
+              key={plan.id}
+              className={`w-full rounded-3xl p-6 sm:w-[calc(50%-0.625rem)] lg:w-[calc(33.333%-0.834rem)] ${
+                highlight ? "glass-strong border-glow/30 glow-shadow" : "glass"
+              }`}
+            >
+              {highlight && (
+                <p className="mb-2 inline-block rounded-full bg-glow/15 px-3 py-0.5 text-xs font-semibold text-glow">
+                  Most popular
+                </p>
+              )}
+              <h2 className="text-lg font-semibold">{plan.name}</h2>
+              <p className="mt-1 min-h-10 text-sm text-ink-2">{plan.description}</p>
+
+              <p className="mt-4 font-mono text-3xl font-bold">
+                {price > 0 ? formatINR(price) : "₹0"}
+                {price > 0 && (
+                  <span className="text-sm font-normal text-ink-3">{cycleSuffix(cycle)}</span>
+                )}
+              </p>
+              {price > 0 && cycle !== "monthly" && (
+                <p className="text-xs text-ink-3">
+                  ≈ {formatINR(effectiveMonthly(plan, cycle))}/mo
+                </p>
+              )}
+
+              <ul className="mt-4 space-y-1.5 text-sm text-ink-2">
+                <li>
+                  {plan.max_entities
+                    ? `${plan.max_entities} ${plan.max_entities === 1 ? "entity" : "entities"}`
+                    : "Unlimited entities"}
+                </li>
+                <li>
+                  {plan.max_subscriptions
+                    ? `Up to ${plan.max_subscriptions} subscriptions`
+                    : "Unlimited subscriptions"}
+                </li>
+                {!isFree && <li>GST-ready exports · Invoice vault</li>}
+              </ul>
+
+              <div className="mt-6">
+                {isCurrent ? (
+                  <p className="glass rounded-xl py-2.5 text-center text-sm text-ink-2">
+                    Current plan
+                  </p>
+                ) : plan.sort_order < currentSortOrder ? (
+                  <DowngradeButton
+                    planCode={plan.code}
+                    planName={plan.name}
+                    daysRemaining={daysRemaining}
+                  />
+                ) : (
+                  <UpgradeButton
+                    planCode={plan.code}
+                    prices={plan}
+                    cycle={cycle}
+                    disabled={!paymentsReady}
+                  />
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

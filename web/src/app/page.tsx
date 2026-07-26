@@ -16,7 +16,7 @@ const FALLBACK_PLANS: LandingPlan[] = [
   {
     code: "free",
     name: "Free",
-    description: "Track up to 5 subscriptions on your personal entity.",
+    description: "Free forever, no card required.",
     price_monthly: 0,
     price_quarterly: 0,
     price_half_yearly: 0,
@@ -27,7 +27,7 @@ const FALLBACK_PLANS: LandingPlan[] = [
   {
     code: "starter",
     name: "Starter",
-    description: "Up to 10 subscriptions on your personal entity.",
+    description: "A bit more room to grow.",
     price_monthly: 29,
     price_quarterly: 79,
     price_half_yearly: 139,
@@ -38,8 +38,7 @@ const FALLBACK_PLANS: LandingPlan[] = [
   {
     code: "pro",
     name: "Personal",
-    description:
-      "Unlimited subscriptions on your personal entity, GST export, invoice vault.",
+    description: "Everything for your own subscriptions.",
     price_monthly: 49,
     price_quarterly: 129,
     price_half_yearly: 229,
@@ -50,8 +49,7 @@ const FALLBACK_PLANS: LandingPlan[] = [
   {
     code: "business_lite",
     name: "Business Lite",
-    description:
-      "Unlimited subscriptions across your personal entity plus 2 business entities.",
+    description: "Personal plus two businesses.",
     price_monthly: 99,
     price_quarterly: 259,
     price_half_yearly: 459,
@@ -62,8 +60,7 @@ const FALLBACK_PLANS: LandingPlan[] = [
   {
     code: "team",
     name: "Business",
-    description:
-      "Unlimited subscriptions across your personal entity plus unlimited business entities.",
+    description: "Every business you run, one place.",
     price_monthly: 149,
     price_quarterly: 389,
     price_half_yearly: 699,

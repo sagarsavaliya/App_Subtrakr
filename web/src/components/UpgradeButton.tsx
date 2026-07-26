@@ -4,13 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatINR } from "@/lib/format";
 import { useToast } from "@/components/Toaster";
-import {
-  BILLING_CYCLES,
-  cycleLabel,
-  cycleShortLabel,
-  priceForCycle,
-  type BillingCycle,
-} from "@/lib/billingCycle";
+import { cycleLabel, priceForCycle, type BillingCycle, type PlanPrices } from "@/lib/billingCycle";
 
 declare global {
   interface Window {
@@ -29,31 +23,24 @@ function loadCheckoutJs(): Promise<void> {
   });
 }
 
+/** Just the checkout button now — which cycle to buy is chosen once, above
+ *  the whole card grid (see BillingPlanGrid), not per-card; a separate
+ *  4-way toggle repeated on every card was both visually noisy and
+ *  wrapped into an ugly vertical stack in a narrow card. */
 export function UpgradeButton({
   planCode,
-  priceMonthly,
-  priceQuarterly,
-  priceHalfYearly,
-  priceYearly,
+  prices,
+  cycle,
   disabled,
 }: {
   planCode: string;
-  priceMonthly: number;
-  priceQuarterly: number;
-  priceHalfYearly: number;
-  priceYearly: number;
+  prices: PlanPrices;
+  cycle: BillingCycle;
   disabled?: boolean;
 }) {
   const router = useRouter();
   const toast = useToast();
-  const [cycle, setCycle] = useState<BillingCycle>("monthly");
   const [busy, setBusy] = useState(false);
-  const prices = {
-    price_monthly: priceMonthly,
-    price_quarterly: priceQuarterly,
-    price_half_yearly: priceHalfYearly,
-    price_yearly: priceYearly,
-  };
 
   async function upgrade() {
     setBusy(true);
@@ -104,26 +91,12 @@ export function UpgradeButton({
   const price = priceForCycle(prices, cycle);
 
   return (
-    <div>
-      <div className="mb-3 grid grid-cols-4 gap-1.5 text-xs">
-        {BILLING_CYCLES.map((c) => (
-          <button
-            key={c}
-            onClick={() => setCycle(c)}
-            title={cycleLabel(c)}
-            className={`rounded-full px-2 py-1 text-center ${cycle === c ? "brand-gradient font-semibold text-[#08201a]" : "glass text-ink-2"}`}
-          >
-            {cycleShortLabel(c)}
-          </button>
-        ))}
-      </div>
-      <button
-        onClick={upgrade}
-        disabled={disabled || busy}
-        className="brand-gradient glow-shadow w-full cursor-pointer rounded-xl py-2.5 text-sm font-bold text-[#08201a] transition-transform duration-150 hover:scale-[1.02] hover:opacity-90 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        {busy ? "Opening checkout…" : `Upgrade · ${formatINR(price)}`}
-      </button>
-    </div>
+    <button
+      onClick={upgrade}
+      disabled={disabled || busy}
+      className="brand-gradient glow-shadow w-full cursor-pointer rounded-xl py-2.5 text-sm font-bold text-[#08201a] transition-transform duration-150 hover:scale-[1.02] hover:opacity-90 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+    >
+      {busy ? "Opening checkout…" : `Upgrade · ${formatINR(price)}`}
+    </button>
   );
 }

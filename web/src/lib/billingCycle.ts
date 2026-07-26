@@ -54,3 +54,15 @@ export function priceForCycle(plan: PlanPrices, cycle: BillingCycle): number {
     yearly: plan.price_yearly,
   }[cycle];
 }
+
+/** "/mo", "/qtr", etc. — the unit shown right after the price. */
+export function cycleSuffix(cycle: BillingCycle): string {
+  return { monthly: "/mo", quarterly: "/qtr", half_yearly: "/half-yr", yearly: "/yr" }[cycle];
+}
+
+/** What a non-monthly price works out to per month — shown as a small
+ *  "≈ ₹X/mo" note under the sticker price so the discount is legible at a
+ *  glance instead of making the subscriber do the division themselves. */
+export function effectiveMonthly(plan: PlanPrices, cycle: BillingCycle): number {
+  return priceForCycle(plan, cycle) / CYCLE_MONTHS[cycle];
+}
