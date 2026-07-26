@@ -37,10 +37,16 @@ export function Pricing({ plans }: { plans: LandingPlan[] }) {
   const [category, setCategory] = useState<PlanCategory>("personal");
 
   const visiblePlans = plans.filter((p) => categoryOf(p) === category);
+  // Card width must subtract however much of the container's own gap-6
+  // (1.5rem) each card actually owes — (100% - (n-1)*gap) / n — not a
+  // copy-pasted offset from BillingPlanGrid's gap-5 grid. Getting this
+  // wrong doesn't clip anything, it just makes N cards' total width a
+  // hair over 100%, so the last one silently wraps to its own row instead
+  // of sharing one row with the rest.
   const cardWidthClass =
     visiblePlans.length <= 2
-      ? "sm:w-[calc(50%-0.625rem)] lg:w-96"
-      : "sm:w-[calc(50%-0.625rem)] lg:w-[calc(33.333%-0.834rem)]";
+      ? "sm:w-[calc(50%-0.75rem)] lg:w-96"
+      : "sm:w-[calc(50%-0.75rem)] lg:w-[calc(33.333%-1rem)]";
 
   return (
     <section id="pricing" className="mx-auto max-w-6xl px-5 py-24">
