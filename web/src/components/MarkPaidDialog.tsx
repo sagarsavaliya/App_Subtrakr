@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useServerAction, type ActionResult } from "@/lib/useServerAction";
 import { Modal } from "@/components/Modal";
 import { CustomDatePicker } from "@/components/CustomDatePicker";
@@ -33,13 +34,17 @@ export function MarkPaidDialog({
   paymentMethods: PaymentMethod[];
   renderTrigger: (open: () => void, pending: boolean) => React.ReactNode;
 }) {
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const defaultMethod = paymentMethods.find((m) => m.is_default);
 
   const { run, pending } = useServerAction(markPaidAction, {
     successMessage: "Marked paid.",
-    onSuccess: () => setIsOpen(false),
+    onSuccess: () => {
+      setIsOpen(false);
+      router.refresh();
+    },
   });
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {

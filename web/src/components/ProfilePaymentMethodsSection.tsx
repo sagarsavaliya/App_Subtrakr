@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { deletePaymentMethod, setDefaultPaymentMethod } from "@/app/app/paymentMethodActions";
 import { useServerAction } from "@/lib/useServerAction";
 import { PaymentMethodForm } from "@/components/PaymentMethodForm";
@@ -45,8 +46,14 @@ function detailLine(m: PaymentMethod): string {
 }
 
 function Row({ method }: { method: PaymentMethod }) {
-  const del = useServerAction(deletePaymentMethod, { successMessage: "Removed." });
-  const setDefault = useServerAction(setDefaultPaymentMethod);
+  const router = useRouter();
+  const del = useServerAction(deletePaymentMethod, {
+    successMessage: "Removed.",
+    onSuccess: () => router.refresh(),
+  });
+  const setDefault = useServerAction(setDefaultPaymentMethod, {
+    onSuccess: () => router.refresh(),
+  });
 
   return (
     <li className="glass flex items-center justify-between gap-3 rounded-2xl p-4">
@@ -100,6 +107,7 @@ function Row({ method }: { method: PaymentMethod }) {
  *  "Mark paid" so payments trace back to a specific card/account/wallet,
  *  useful for splitting personal vs business spend at ITR/GST time. */
 export function ProfilePaymentMethodsSection({ methods }: { methods: PaymentMethod[] }) {
+  const router = useRouter();
   const [adding, setAdding] = useState(false);
 
   return (
@@ -113,7 +121,12 @@ export function ProfilePaymentMethodsSection({ methods }: { methods: PaymentMeth
       )}
 
       {adding ? (
-        <PaymentMethodForm onDone={() => setAdding(false)} />
+        <PaymentMethodForm
+          onDone={() => {
+            setAdding(false);
+            router.refresh();
+          }}
+        />
       ) : (
         <button
           onClick={() => setAdding(true)}
