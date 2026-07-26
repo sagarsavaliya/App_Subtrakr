@@ -4,12 +4,7 @@ import { formatDate } from "@/lib/format";
 import { AddEntityForm } from "@/components/AddEntityForm";
 import { BuildingIcon } from "@/components/icons";
 
-export default async function ProfilePage({
-  searchParams,
-}: {
-  searchParams: Promise<{ error?: string }>;
-}) {
-  const { error } = await searchParams;
+export default async function ProfilePage() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -50,14 +45,6 @@ export default async function ProfilePage({
       </div>
 
       <h2 className="mb-3 text-sm font-semibold text-ink-2">Entities</h2>
-
-      {error && (
-        <p className="glass mb-4 rounded-2xl border-overdue/40 p-4 text-sm text-overdue">
-          {error === "limit"
-            ? "Your plan's entity limit is reached — upgrade to add another business."
-            : "That didn't save — check the fields and try again."}
-        </p>
-      )}
 
       <ul className="space-y-3">
         {entities?.map((e) => (

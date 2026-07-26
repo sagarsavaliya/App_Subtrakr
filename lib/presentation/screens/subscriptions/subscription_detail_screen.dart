@@ -9,6 +9,7 @@ import 'package:uuid/uuid.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/utils/action_feedback.dart';
 import '../../../core/utils/currency_utils.dart';
 import '../../../core/utils/date_utils.dart';
 import '../../../data/mock/mock_data.dart';
@@ -189,16 +190,18 @@ class SubscriptionDetailScreen extends ConsumerWidget {
                       icon: sub.status == SubscriptionStatus.paused
                           ? Icons.play_arrow
                           : Icons.pause,
-                      onPressed: () {
-                        ref
+                      onPressed: () => runWithFeedback(
+                        context,
+                        action: () => ref
                             .read(subscriptionsProvider.notifier)
                             .setStatus(
                               sub.id,
                               sub.status == SubscriptionStatus.paused
                                   ? SubscriptionStatus.active
                                   : SubscriptionStatus.paused,
-                            );
-                      },
+                            ),
+                        errorMessage: "Couldn't update that. Try again.",
+                      ),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -329,7 +332,14 @@ class SubscriptionDetailScreen extends ConsumerWidget {
                                   ),
                                 ),
                                 IconButton(
-                                  onPressed: () => ref.read(invoicesProvider.notifier).removeById(invoice.id),
+                                  onPressed: () => runWithFeedback(
+                                    context,
+                                    action: () => ref
+                                        .read(invoicesProvider.notifier)
+                                        .removeById(invoice.id),
+                                    successMessage: '${invoice.fileName} removed.',
+                                    errorMessage: "Couldn't remove that invoice. Try again.",
+                                  ),
                                   icon: const Icon(Icons.close, size: 17, color: AppColors.textHint),
                                   visualDensity: VisualDensity.compact,
                                 ),
@@ -382,24 +392,28 @@ class SubscriptionDetailScreen extends ConsumerWidget {
       withData: true,
     );
     final file = result?.files.singleOrNull;
-    if (file?.bytes == null) return;
+    final bytes = file?.bytes;
+    if (file == null || bytes == null || !context.mounted) return;
+    // Captured into locals above rather than referencing file.name/
+    // file.bytes inside the closure below — a nullable field's promotion
+    // from the guard clause doesn't survive into a closure body.
+    final fileName = file.name;
 
-    ref.read(invoicesProvider.notifier).add(
-      InvoiceModel(
-        id: _uuid.v4(),
-        subscriptionId: subscriptionId,
-        fileName: file!.name,
-        invoiceDate: DateTime.now(),
-        sizeBytes: file.bytes!.length,
-        base64Data: base64Encode(file.bytes!),
-      ),
+    await runWithFeedback(
+      context,
+      action: () => ref.read(invoicesProvider.notifier).add(
+            InvoiceModel(
+              id: _uuid.v4(),
+              subscriptionId: subscriptionId,
+              fileName: fileName,
+              invoiceDate: DateTime.now(),
+              sizeBytes: bytes.length,
+              base64Data: base64Encode(bytes),
+            ),
+          ),
+      successMessage: '$fileName attached.',
+      errorMessage: "Couldn't attach that file — it may be too large. Try again.",
     );
-
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${file.name} attached')),
-      );
-    }
   }
 
   void _confirmDelete(BuildContext context, WidgetRef ref, SubscriptionModel sub) {
@@ -419,10 +433,15 @@ class SubscriptionDetailScreen extends ConsumerWidget {
             child: Text('Cancel', style: AppTextStyles.bodyMedium),
           ),
           TextButton(
-            onPressed: () {
-              ref.read(subscriptionsProvider.notifier).deleteSubscription(sub.id);
+            onPressed: () async {
               Navigator.of(dialogContext).pop();
-              context.pop();
+              final ok = await runWithFeedback(
+                context,
+                action: () =>
+                    ref.read(subscriptionsProvider.notifier).deleteSubscription(sub.id),
+                errorMessage: "Couldn't delete that subscription. Try again.",
+              );
+              if (ok && context.mounted) context.pop();
             },
             child: Text('Delete', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.overdue)),
           ),

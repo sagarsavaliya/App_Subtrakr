@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatINR } from "@/lib/format";
+import { useToast } from "@/components/Toaster";
 
 declare global {
   interface Window {
@@ -33,13 +34,12 @@ export function UpgradeButton({
   disabled?: boolean;
 }) {
   const router = useRouter();
+  const toast = useToast();
   const [cycle, setCycle] = useState<"monthly" | "yearly">("monthly");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function upgrade() {
     setBusy(true);
-    setError(null);
     try {
       const res = await fetch("/api/billing/checkout", {
         method: "POST",
@@ -69,12 +69,16 @@ export function UpgradeButton({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ ...rsp, planCode, cycle }),
           });
-          if (verify.ok) router.refresh();
-          else setError("Payment verification failed — contact support.");
+          if (verify.ok) {
+            toast.success("Payment successful — you're upgraded.");
+            router.refresh();
+          } else {
+            toast.error("Payment verification failed — contact support.");
+          }
         },
       }).open();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong");
+      toast.error(e instanceof Error ? e.message : "Something went wrong.");
     } finally {
       setBusy(false);
     }
@@ -98,11 +102,10 @@ export function UpgradeButton({
       <button
         onClick={upgrade}
         disabled={disabled || busy}
-        className="brand-gradient glow-shadow w-full rounded-xl py-2.5 text-sm font-bold text-[#08201a] transition hover:opacity-90 disabled:opacity-40"
+        className="brand-gradient glow-shadow w-full cursor-pointer rounded-xl py-2.5 text-sm font-bold text-[#08201a] transition-transform duration-150 hover:scale-[1.02] hover:opacity-90 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
       >
         {busy ? "Opening checkout…" : `Upgrade · ${formatINR(price)}`}
       </button>
-      {error && <p className="mt-2 text-xs text-overdue">{error}</p>}
     </div>
   );
 }

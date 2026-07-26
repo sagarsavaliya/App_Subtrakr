@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/utils/action_feedback.dart';
 import '../../../data/models/entity_model.dart';
 import '../../../services/sync_service.dart';
 import '../../providers/entity_provider.dart';
@@ -33,6 +34,7 @@ class _EntityEditSheetState extends ConsumerState<EntityEditSheet> {
   late final TextEditingController _nameController;
   late final TextEditingController _gstController;
   String? _error;
+  bool _saving = false;
 
   bool get _isEdit => widget.existing != null;
 
@@ -51,7 +53,7 @@ class _EntityEditSheetState extends ConsumerState<EntityEditSheet> {
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     final name = _nameController.text.trim();
     final gst = _gstController.text.trim().toUpperCase();
 
@@ -67,23 +69,37 @@ class _EntityEditSheetState extends ConsumerState<EntityEditSheet> {
       return;
     }
 
+    setState(() {
+      _error = null;
+      _saving = true;
+    });
+
     final notifier = ref.read(entitiesProvider.notifier);
-    if (_isEdit) {
-      notifier.update(EntityModel(
-        id: widget.existing!.id,
-        name: name,
-        type: widget.existing!.type,
-        gstNumber: gst.isEmpty ? null : gst,
-      ));
+    final ok = await runWithFeedback(
+      context,
+      action: () => _isEdit
+          ? notifier.update(EntityModel(
+              id: widget.existing!.id,
+              name: name,
+              type: widget.existing!.type,
+              gstNumber: gst.isEmpty ? null : gst,
+            ))
+          : notifier.add(EntityModel(
+              id: SyncService.newId(),
+              name: name,
+              type: EntityType.company,
+              gstNumber: gst.isEmpty ? null : gst,
+            )),
+      successMessage: _isEdit ? '$name updated.' : '$name added.',
+      errorMessage: "Couldn't save. Try again.",
+    );
+
+    if (!mounted) return;
+    if (ok) {
+      Navigator.of(context).pop();
     } else {
-      notifier.add(EntityModel(
-        id: SyncService.newId(),
-        name: name,
-        type: EntityType.company,
-        gstNumber: gst.isEmpty ? null : gst,
-      ));
+      setState(() => _saving = false);
     }
-    Navigator.of(context).pop();
   }
 
   @override
@@ -195,6 +211,7 @@ class _EntityEditSheetState extends ConsumerState<EntityEditSheet> {
                   GradientButton(
                     label: _isEdit ? 'Save changes' : 'Add company',
                     icon: _isEdit ? Icons.check : Icons.add,
+                    isLoading: _saving,
                     onPressed: _submit,
                   ),
                 ],

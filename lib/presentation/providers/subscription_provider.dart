@@ -20,11 +20,20 @@ class SubscriptionsNotifier extends Notifier<List<SubscriptionModel>> {
   /// Marks [id] paid, advances its next due date, and records a payment
   /// history entry. Returns the pre-mutation subscription + the new payment's
   /// id so the caller can offer a 5-second Undo.
-  ({SubscriptionModel previous, String paymentId})? markPaid(
+  ///
+  /// The in-memory `state` update is optimistic (immediate, for a
+  /// responsive UI); `_repo.save` is awaited and its errors propagate to
+  /// the caller — previously this was fire-and-forget, so a failed local
+  /// write (Hive full/corrupted) was a genuinely unhandled Future
+  /// rejection with zero user-visible feedback. SyncService stays
+  /// fire-and-forget deliberately: it already catches+logs its own errors
+  /// internally and self-heals via the next pullAll, so surfacing every
+  /// transient network hiccup here would be noise, not signal.
+  Future<({SubscriptionModel previous, String paymentId})?> markPaid(
     String id, {
     double? amountPaid,
     PaymentSource source = PaymentSource.manual,
-  }) {
+  }) async {
     final previous = state.firstWhereOrNull((s) => s.id == id);
     if (previous == null) return null;
 
@@ -37,12 +46,12 @@ class SubscriptionsNotifier extends Notifier<List<SubscriptionModel>> {
     );
 
     state = [for (final sub in state) if (sub.id == id) updated else sub];
-    _repo.save(updated);
+    await _repo.save(updated);
     NotificationService.scheduleReminder(updated);
     SyncService.upsertSubscription(updated);
 
     final paymentId = _uuid.v4();
-    ref
+    await ref
         .read(paymentHistoryProvider.notifier)
         .add(
           PaymentHistoryModel(
@@ -60,49 +69,49 @@ class SubscriptionsNotifier extends Notifier<List<SubscriptionModel>> {
 
   /// Reverts a markPaid call — restores the previous subscription state and
   /// removes the payment history entry it created.
-  void undoMarkPaid(SubscriptionModel previous, String paymentId) {
+  Future<void> undoMarkPaid(SubscriptionModel previous, String paymentId) async {
     state = [for (final sub in state) if (sub.id == previous.id) previous else sub];
-    _repo.save(previous);
+    await _repo.save(previous);
     NotificationService.scheduleReminder(previous);
     SyncService.upsertSubscription(previous);
-    ref.read(paymentHistoryProvider.notifier).removeById(paymentId);
+    await ref.read(paymentHistoryProvider.notifier).removeById(paymentId);
   }
 
-  void setStatus(String id, SubscriptionStatus status) {
+  Future<void> setStatus(String id, SubscriptionStatus status) async {
     state = [
       for (final sub in state)
         if (sub.id == id) sub.copyWith(status: status) else sub,
     ];
     final updated = state.firstWhereOrNull((s) => s.id == id);
     if (updated != null) {
-      _repo.save(updated);
+      await _repo.save(updated);
       // scheduleReminder itself cancels+no-ops for non-active statuses.
       NotificationService.scheduleReminder(updated);
       SyncService.upsertSubscription(updated);
     }
   }
 
-  void deleteSubscription(String id) {
+  Future<void> deleteSubscription(String id) async {
     state = state.where((s) => s.id != id).toList();
-    _repo.delete(id);
+    await _repo.delete(id);
     NotificationService.cancelReminder(id);
     // Its payment history goes with it, locally and on the server.
-    ref.read(paymentHistoryProvider.notifier).removeForSubscription(id);
+    await ref.read(paymentHistoryProvider.notifier).removeForSubscription(id);
     SyncService.deleteSubscription(id);
   }
 
-  void addSubscription(SubscriptionModel sub) {
+  Future<void> addSubscription(SubscriptionModel sub) async {
     state = [...state, sub];
-    _repo.save(sub);
+    await _repo.save(sub);
     NotificationService.scheduleReminder(sub);
     SyncService.upsertSubscription(sub);
   }
 
   /// Full-record edit (PRD S3-8) — replaces the row, reschedules its
   /// reminder, and pushes the change to the server.
-  void updateSubscription(SubscriptionModel sub) {
+  Future<void> updateSubscription(SubscriptionModel sub) async {
     state = [for (final s in state) if (s.id == sub.id) sub else s];
-    _repo.save(sub);
+    await _repo.save(sub);
     NotificationService.scheduleReminder(sub);
     SyncService.upsertSubscription(sub);
   }

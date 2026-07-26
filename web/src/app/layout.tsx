@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { DM_Sans, DM_Mono } from "next/font/google";
+import { ToastProvider } from "@/components/Toaster";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -48,7 +49,7 @@ export default function RootLayout({
     <html lang="en" className={`${dmSans.variable} ${dmMono.variable}`}>
       <body>
         <div className="aurora" />
-        {children}
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );

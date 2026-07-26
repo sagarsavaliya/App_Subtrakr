@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { formatINR, formatDate } from "@/lib/format";
+import { useServerAction, type ActionResult } from "@/lib/useServerAction";
 import { TrashIcon } from "./icons";
 
 type Props = {
@@ -16,11 +17,11 @@ type Props = {
   isAutoDebit: boolean;
   overdue: boolean;
   index: number;
-  markPaidAction: (formData: FormData) => void;
-  deleteAction: (formData: FormData) => void;
-  /** Extra hidden fields the actions need beyond `id` — e.g. the admin
-   *  variants also need `user_id` to know which subscriber's revalidation
-   *  path to hit. */
+  markPaidAction: (formData: FormData) => Promise<ActionResult | void>;
+  deleteAction: (formData: FormData) => Promise<ActionResult | void>;
+  /** Extra fields the actions need beyond `id` — e.g. the admin variants
+   *  also need `user_id` to know which subscriber's revalidation path to
+   *  hit. */
   hiddenFields?: Record<string, string>;
   /** When set, the name/avatar area links to the subscription's detail
    *  page (payment history, total paid). Omitted in the admin context —
@@ -48,11 +49,17 @@ export function SubscriptionRow({
   hiddenFields,
   detailHref,
 }: Props) {
-  const extraInputs = hiddenFields
-    ? Object.entries(hiddenFields).map(([k, v]) => (
-        <input key={k} type="hidden" name={k} value={v} />
-      ))
-    : null;
+  const markPaid = useServerAction(markPaidAction, { successMessage: "Marked paid." });
+  const del = useServerAction(deleteAction, { successMessage: `${name} deleted.` });
+
+  function buildFormData() {
+    const fd = new FormData();
+    fd.set("id", id);
+    if (hiddenFields) {
+      for (const [k, v] of Object.entries(hiddenFields)) fd.set(k, v);
+    }
+    return fd;
+  }
 
   const identity = (
     <>
@@ -97,32 +104,30 @@ export function SubscriptionRow({
         <p className="text-xs text-ink-3">/{billingCycle.replace("_", " ")}</p>
       </div>
       {status === "active" && (
-        <form action={markPaidAction}>
-          <input type="hidden" name="id" value={id} />
-          {extraInputs}
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className="glass cursor-pointer rounded-full px-3 py-1.5 text-xs text-glow transition-colors duration-200 hover:border-glow/40"
-            title="Mark paid — advances next due date"
-          >
-            Mark paid
-          </motion.button>
-        </form>
-      )}
-      <form action={deleteAction}>
-        <input type="hidden" name="id" value={id} />
-        {extraInputs}
         <motion.button
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
-          className="glass cursor-pointer rounded-full p-2 text-ink-3 transition-colors duration-200 hover:text-overdue"
-          title="Delete subscription"
-          aria-label={`Delete ${name}`}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => markPaid.run(buildFormData())}
+          disabled={markPaid.pending}
+          className="glass cursor-pointer rounded-full px-3 py-1.5 text-xs text-glow transition-colors duration-200 hover:border-glow/40 disabled:cursor-not-allowed disabled:opacity-50"
+          title="Mark paid — advances next due date"
         >
-          <TrashIcon className="h-3.5 w-3.5" />
+          {markPaid.pending ? "Working…" : "Mark paid"}
         </motion.button>
-      </form>
+      )}
+      <motion.button
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
+        onClick={() => {
+          if (confirm(`Delete ${name}? This can't be undone.`)) del.run(buildFormData());
+        }}
+        disabled={del.pending}
+        className="glass cursor-pointer rounded-full p-2 text-ink-3 transition-colors duration-200 hover:text-overdue disabled:cursor-not-allowed disabled:opacity-50"
+        title="Delete subscription"
+        aria-label={`Delete ${name}`}
+      >
+        <TrashIcon className="h-3.5 w-3.5" />
+      </motion.button>
     </motion.li>
   );
 }

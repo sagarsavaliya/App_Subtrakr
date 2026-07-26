@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/utils/action_feedback.dart';
 import '../../../data/models/entity_model.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/backup_service.dart';
@@ -45,11 +46,19 @@ class SettingsScreen extends ConsumerWidget {
         ],
       ),
     );
-    if (confirmed != true) return;
+    if (confirmed != true || !context.mounted) return;
 
-    await AuthService.signOut();
-    await NotificationService.cancelAll();
-    await SyncService.clearLocal();
+    final ok = await runWithFeedback(
+      context,
+      action: () async {
+        await AuthService.signOut();
+        await NotificationService.cancelAll();
+        await SyncService.clearLocal();
+      },
+      errorMessage: "Couldn't sign out. Try again.",
+    );
+    if (!ok) return;
+
     ref.invalidate(entitiesProvider);
     ref.invalidate(subscriptionsProvider);
     ref.invalidate(paymentHistoryProvider);
@@ -159,7 +168,11 @@ class SettingsScreen extends ConsumerWidget {
             _ActionRow(
               icon: Icons.download_outlined,
               label: 'Export full backup',
-              onTap: () => BackupService.shareFullBackup(),
+              onTap: () => runWithFeedback(
+                context,
+                action: BackupService.shareFullBackup,
+                errorMessage: "Couldn't export the backup. Try again.",
+              ),
             ),
             if (signedIn) ...[
               const SizedBox(height: AppSpacing.listItemGap),
@@ -273,7 +286,7 @@ class _ToggleRow extends StatelessWidget {
   }
 }
 
-class _ActionRow extends StatelessWidget {
+class _ActionRow extends StatefulWidget {
   const _ActionRow({
     required this.icon,
     required this.label,
@@ -283,8 +296,25 @@ class _ActionRow extends StatelessWidget {
 
   final IconData icon;
   final String label;
-  final VoidCallback onTap;
+  final Future<void> Function() onTap;
   final Color? labelColor;
+
+  @override
+  State<_ActionRow> createState() => _ActionRowState();
+}
+
+class _ActionRowState extends State<_ActionRow> {
+  bool _busy = false;
+
+  Future<void> _handleTap() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await widget.onTap();
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -292,23 +322,33 @@ class _ActionRow extends StatelessWidget {
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
-        onTap: onTap,
+        onTap: _busy ? null : _handleTap,
         borderRadius: BorderRadius.circular(16),
         child: GlassSurface(
           borderRadius: 16,
           padding: const EdgeInsets.all(14),
           child: Row(
             children: [
-              Icon(icon, size: 18, color: labelColor ?? AppColors.textSecondary),
+              Icon(widget.icon,
+                  size: 18, color: widget.labelColor ?? AppColors.textSecondary),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  label,
-                  style: AppTextStyles.bodyMedium.copyWith(color: labelColor),
+                  widget.label,
+                  style: AppTextStyles.bodyMedium.copyWith(color: widget.labelColor),
                 ),
               ),
-              const Icon(Icons.chevron_right,
-                  color: AppColors.textHint, size: 18),
+              _busy
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation(AppColors.accentGlow),
+                      ),
+                    )
+                  : const Icon(Icons.chevron_right,
+                      color: AppColors.textHint, size: 18),
             ],
           ),
         ),

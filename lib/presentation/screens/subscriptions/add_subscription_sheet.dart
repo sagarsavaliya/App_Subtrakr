@@ -4,6 +4,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/constants/service_catalogue.dart';
+import '../../../core/utils/action_feedback.dart';
 import '../../../core/utils/date_utils.dart';
 import '../../../data/models/subscription_model.dart';
 import '../../../services/sync_service.dart';
@@ -49,6 +50,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
   String? _entityId;
   bool _autoDebit = false;
   bool _showAdvanced = false;
+  bool _saving = false;
   final _notesController = TextEditingController();
 
   bool get _isEdit => widget.existing != null;
@@ -134,10 +136,12 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
     if (picked != null) setState(() => _startDate = picked);
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     final entities = ref.read(entitiesProvider);
     final entity = entities.firstWhere((e) => e.id == _entityId);
     final existing = widget.existing;
+
+    setState(() => _saving = true);
 
     if (existing != null) {
       // Keep the already-advanced next due date unless the schedule inputs
@@ -161,11 +165,19 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
         remindDaysBefore: existing.remindDaysBefore,
         invoiceCount: existing.invoiceCount,
       );
-      ref.read(subscriptionsProvider.notifier).updateSubscription(updated);
-      Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${updated.name} updated')),
+      final ok = await runWithFeedback(
+        context,
+        action: () =>
+            ref.read(subscriptionsProvider.notifier).updateSubscription(updated),
+        successMessage: '${updated.name} updated.',
+        errorMessage: "Couldn't save that change. Try again.",
       );
+      if (!mounted) return;
+      if (ok) {
+        Navigator.of(context).pop();
+      } else {
+        setState(() => _saving = false);
+      }
       return;
     }
 
@@ -184,15 +196,19 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
       nextDueDate: _nextDue,
       isAutoDebit: _autoDebit,
     );
-    ref.read(subscriptionsProvider.notifier).addSubscription(sub);
-    Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
+    final ok = await runWithFeedback(
+      context,
+      action: () => ref.read(subscriptionsProvider.notifier).addSubscription(sub),
+      successMessage:
           '${sub.name} added · next due ${AppDateUtils.formatDate(sub.nextDueDate)}',
-        ),
-      ),
+      errorMessage: "Couldn't save that subscription. Try again.",
     );
+    if (!mounted) return;
+    if (ok) {
+      Navigator.of(context).pop();
+    } else {
+      setState(() => _saving = false);
+    }
   }
 
   @override
@@ -553,7 +569,8 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
                         const SizedBox(height: 22),
                         GradientButton(
                           label: _isEdit ? 'Save changes' : 'Add subscription',
-                          onPressed: _canSubmit ? _submit : null,
+                          isLoading: _saving,
+                          onPressed: _canSubmit && !_saving ? _submit : null,
                         ),
                       ],
                     ),

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { updatePlan, deletePlan } from "@/app/admin/actions";
+import { useServerAction } from "@/lib/useServerAction";
 import { TrashIcon } from "@/components/icons";
 import { formatINR } from "@/lib/format";
 
@@ -23,14 +24,18 @@ const inputClass =
 
 export function PlanCard({ plan, canDelete }: { plan: Plan; canDelete: boolean }) {
   const [editing, setEditing] = useState(false);
+  const update = useServerAction(updatePlan, { onSuccess: () => setEditing(false) });
+  const del = useServerAction(deletePlan);
 
-  function confirmDelete(e: React.FormEvent) {
+  function onDeleteClick() {
     if (
-      !confirm(
+      confirm(
         `Delete the ${plan.name} plan? This can't be undone, and fails safely if any subscriber is currently on it.`,
       )
     ) {
-      e.preventDefault();
+      const fd = new FormData();
+      fd.set("id", plan.id);
+      del.run(fd);
     }
   }
 
@@ -91,30 +96,30 @@ export function PlanCard({ plan, canDelete }: { plan: Plan; canDelete: boolean }
                 Edit
               </motion.button>
               {canDelete && (
-                <form action={deletePlan} onSubmit={confirmDelete}>
-                  <input type="hidden" name="id" value={plan.id} />
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    type="submit"
-                    className="glass flex cursor-pointer items-center justify-center rounded-xl p-2.5 text-ink-3 transition-colors duration-200 hover:text-overdue"
-                    aria-label={`Delete ${plan.name}`}
-                  >
-                    <TrashIcon className="h-4 w-4" />
-                  </motion.button>
-                </form>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={onDeleteClick}
+                  disabled={del.pending}
+                  className="glass flex cursor-pointer items-center justify-center rounded-xl p-2.5 text-ink-3 transition-colors duration-200 hover:text-overdue disabled:cursor-not-allowed disabled:opacity-50"
+                  aria-label={`Delete ${plan.name}`}
+                >
+                  <TrashIcon className="h-4 w-4" />
+                </motion.button>
               )}
             </div>
           </motion.div>
         ) : (
           <motion.form
             key="edit"
-            action={updatePlan}
+            onSubmit={(e) => {
+              e.preventDefault();
+              update.run(new FormData(e.currentTarget));
+            }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            onSubmit={() => setEditing(false)}
           >
             <input type="hidden" name="id" value={plan.id} />
             <div className="mb-3 flex items-center justify-between">
@@ -174,9 +179,10 @@ export function PlanCard({ plan, canDelete }: { plan: Plan; canDelete: boolean }
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
                 type="submit"
-                className="brand-gradient flex-1 cursor-pointer rounded-xl py-2 text-sm font-bold text-[#08201a] transition-opacity duration-200 hover:opacity-90"
+                disabled={update.pending}
+                className="brand-gradient flex-1 cursor-pointer rounded-xl py-2 text-sm font-bold text-[#08201a] transition-opacity duration-200 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Save
+                {update.pending ? "Saving…" : "Save"}
               </motion.button>
               <button
                 type="button"

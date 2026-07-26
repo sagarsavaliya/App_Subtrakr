@@ -9,24 +9,24 @@ class PaymentHistoryNotifier extends Notifier<List<PaymentHistoryModel>> {
   @override
   List<PaymentHistoryModel> build() => _repo.getAll();
 
-  void add(PaymentHistoryModel payment) {
+  Future<void> add(PaymentHistoryModel payment) async {
     state = [...state, payment];
-    _repo.save(payment);
+    await _repo.save(payment);
     SyncService.insertPayment(payment);
   }
 
-  void removeById(String id) {
+  Future<void> removeById(String id) async {
     state = state.where((p) => p.id != id).toList();
-    _repo.delete(id);
+    await _repo.delete(id);
     SyncService.deletePayment(id);
   }
 
   /// Local-only removal of a deleted subscription's history — the server
   /// side is handled in one shot by [SyncService.deleteSubscription].
-  void removeForSubscription(String subscriptionId) {
+  Future<void> removeForSubscription(String subscriptionId) async {
     final orphaned = state.where((p) => p.subscriptionId == subscriptionId);
     for (final p in orphaned) {
-      _repo.delete(p.id);
+      await _repo.delete(p.id);
     }
     state = state.where((p) => p.subscriptionId != subscriptionId).toList();
   }

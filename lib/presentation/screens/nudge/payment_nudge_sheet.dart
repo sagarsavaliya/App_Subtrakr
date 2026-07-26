@@ -8,9 +8,9 @@ import '../../../core/utils/date_utils.dart';
 import '../../../data/mock/mock_data.dart';
 import '../../../data/models/payment_history_model.dart';
 import '../../../data/models/subscription_model.dart';
-import '../../providers/subscription_provider.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/glass_surface.dart';
+import '../../widgets/common/mark_paid_feedback.dart';
 import '../../widgets/common/service_logo.dart';
 
 /// Triggered by a share-intent capture (user shares a bank SMS/notification
@@ -236,13 +236,20 @@ class _PaymentNudgeSheetState extends ConsumerState<PaymentNudgeSheet>
                   GradientButton(
                     label: 'Yes, mark paid',
                     icon: Icons.check,
-                    onPressed: () {
-                      ref.read(subscriptionsProvider.notifier).markPaid(
-                            sub.id,
-                            amountPaid: widget.detectedAmount,
-                            source: PaymentSource.shareDetected,
-                          );
-                      Navigator.of(context).pop();
+                    onPressed: () async {
+                      // Awaited (and the SnackBar shown) before popping —
+                      // this sheet's own context is what resolves to the
+                      // parent ScaffoldMessenger; popping first would leave
+                      // markPaidWithUndo with an unmounted context and no
+                      // way to show its confirmation/undo SnackBar at all.
+                      await markPaidWithUndo(
+                        context,
+                        ref,
+                        sub,
+                        amountPaid: widget.detectedAmount,
+                        source: PaymentSource.shareDetected,
+                      );
+                      if (context.mounted) Navigator.of(context).pop();
                     },
                   ),
                   const SizedBox(height: 10),

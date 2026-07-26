@@ -18,15 +18,15 @@ class EntitiesNotifier extends Notifier<List<EntityModel>> {
     ];
   }
 
-  void add(EntityModel entity) {
+  Future<void> add(EntityModel entity) async {
     state = [...state, entity];
-    _repo.save(entity);
+    await _repo.save(entity);
     SyncService.upsertEntity(entity);
   }
 
-  void update(EntityModel entity) {
+  Future<void> update(EntityModel entity) async {
     state = [for (final e in state) if (e.id == entity.id) entity else e];
-    _repo.save(entity);
+    await _repo.save(entity);
     SyncService.upsertEntity(entity);
   }
 }

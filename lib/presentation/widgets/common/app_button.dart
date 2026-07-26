@@ -11,11 +11,16 @@ class GradientButton extends StatelessWidget {
     required this.label,
     this.onPressed,
     this.icon,
+    this.isLoading = false,
   });
 
   final String label;
   final VoidCallback? onPressed;
   final IconData? icon;
+  /// Shows a spinner in place of the label/icon and disables the button —
+  /// without this, every submit button looked identical whether an async
+  /// operation was in flight or not, so a slow save read as "did nothing."
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +28,7 @@ class GradientButton extends StatelessWidget {
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(AppSpacing.buttonRadius),
       child: InkWell(
-        onTap: onPressed,
+        onTap: isLoading ? null : onPressed,
         borderRadius: BorderRadius.circular(AppSpacing.buttonRadius),
         child: Ink(
           decoration: BoxDecoration(
@@ -35,20 +40,31 @@ class GradientButton extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 16),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (icon != null) ...[
-                  Icon(icon, size: 17, color: const Color(0xFF08201A)),
-                  const SizedBox(width: 8),
-                ],
-                Text(
-                  label,
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF08201A),
-                  ),
-                ),
-              ],
+              children: isLoading
+                  ? const [
+                      SizedBox(
+                        width: 17,
+                        height: 17,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation(Color(0xFF08201A)),
+                        ),
+                      ),
+                    ]
+                  : [
+                      if (icon != null) ...[
+                        Icon(icon, size: 17, color: const Color(0xFF08201A)),
+                        const SizedBox(width: 8),
+                      ],
+                      Text(
+                        label,
+                        style: AppTextStyles.bodyMedium.copyWith(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF08201A),
+                        ),
+                      ),
+                    ],
             ),
           ),
         ),
@@ -64,11 +80,13 @@ class GlassButton extends StatelessWidget {
     required this.label,
     this.onPressed,
     this.icon,
+    this.isLoading = false,
   });
 
   final String label;
   final VoidCallback? onPressed;
   final IconData? icon;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -76,23 +94,34 @@ class GlassButton extends StatelessWidget {
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(AppSpacing.buttonRadius),
       child: InkWell(
-        onTap: onPressed,
+        onTap: isLoading ? null : onPressed,
         borderRadius: BorderRadius.circular(AppSpacing.buttonRadius),
         child: GlassSurface(
           borderRadius: AppSpacing.buttonRadius,
           padding: const EdgeInsets.symmetric(vertical: 14),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (icon != null) ...[
-                Icon(icon, size: 15, color: AppColors.textPrimary),
-                const SizedBox(width: 6),
-              ],
-              Text(
-                label,
-                style: AppTextStyles.bodyMedium.copyWith(fontSize: 13),
-              ),
-            ],
+            children: isLoading
+                ? const [
+                    SizedBox(
+                      width: 15,
+                      height: 15,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation(AppColors.accentGlow),
+                      ),
+                    ),
+                  ]
+                : [
+                    if (icon != null) ...[
+                      Icon(icon, size: 15, color: AppColors.textPrimary),
+                      const SizedBox(width: 6),
+                    ],
+                    Text(
+                      label,
+                      style: AppTextStyles.bodyMedium.copyWith(fontSize: 13),
+                    ),
+                  ],
           ),
         ),
       ),

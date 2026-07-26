@@ -83,6 +83,7 @@ export default async function SubscriptionDetailPage({
         </div>
         <SubscriptionDetailActions
           id={sub.id}
+          name={sub.name}
           active={sub.status === "active"}
           markPaidAction={markPaid}
           deleteAction={deleteSubscription}

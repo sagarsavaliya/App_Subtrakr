@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'core/utils/action_feedback.dart';
 import 'presentation/providers/subscription_provider.dart';
 import 'presentation/screens/nudge/payment_nudge_sheet.dart';
 import 'services/notification_action_bridge.dart';
@@ -23,7 +24,16 @@ class _SubtrakrAppState extends ConsumerState<SubtrakrApp> {
     // into the running app — see NotificationActionBridge for why this
     // indirection exists.
     NotificationActionBridge.onMarkPaid = (subscriptionId) {
-      ref.read(subscriptionsProvider.notifier).markPaid(subscriptionId);
+      final ctx = rootNavigatorKey.currentContext;
+      if (ctx == null) return;
+      runWithFeedback(
+        ctx,
+        action: () async {
+          await ref.read(subscriptionsProvider.notifier).markPaid(subscriptionId);
+        },
+        successMessage: 'Marked paid.',
+        errorMessage: "Couldn't mark that paid. Open the app to try again.",
+      );
     };
     NotificationActionBridge.onOpenSubscription = (subscriptionId) {
       appRouter.push('/subscription/$subscriptionId');

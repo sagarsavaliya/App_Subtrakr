@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { addEntity } from "@/app/app/actions";
+import { useServerAction } from "@/lib/useServerAction";
 import { PlusIcon } from "./icons";
 
 /** Toggle-to-reveal "add business" form on the Profile page — collapsed by
@@ -10,6 +11,9 @@ import { PlusIcon } from "./icons";
  *  fade+height animation rather than just appearing. */
 export function AddEntityForm() {
   const [open, setOpen] = useState(false);
+  const { run, pending } = useServerAction(addEntity, {
+    onSuccess: () => setOpen(false),
+  });
 
   const inputClass =
     "glass w-full rounded-xl px-4 py-2.5 text-sm outline-none placeholder:text-ink-3 focus:border-glow/40";
@@ -32,7 +36,10 @@ export function AddEntityForm() {
         ) : (
           <motion.form
             key="form"
-            action={addEntity}
+            onSubmit={(e) => {
+              e.preventDefault();
+              run(new FormData(e.currentTarget));
+            }}
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
@@ -60,11 +67,12 @@ export function AddEntityForm() {
             <div className="flex gap-2 pt-1">
               <motion.button
                 type="submit"
+                disabled={pending}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                className="brand-gradient flex-1 cursor-pointer rounded-xl py-2.5 text-sm font-bold text-[#08201a] transition-opacity duration-200 hover:opacity-90"
+                className="brand-gradient flex-1 cursor-pointer rounded-xl py-2.5 text-sm font-bold text-[#08201a] transition-opacity duration-200 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Save business
+                {pending ? "Saving…" : "Save business"}
               </motion.button>
               <button
                 type="button"

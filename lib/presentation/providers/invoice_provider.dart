@@ -8,14 +8,14 @@ class InvoicesNotifier extends Notifier<List<InvoiceModel>> {
   @override
   List<InvoiceModel> build() => _repo.getAll();
 
-  void add(InvoiceModel invoice) {
+  Future<void> add(InvoiceModel invoice) async {
     state = [...state, invoice];
-    _repo.save(invoice);
+    await _repo.save(invoice);
   }
 
-  void removeById(String id) {
+  Future<void> removeById(String id) async {
     state = state.where((i) => i.id != id).toList();
-    _repo.delete(id);
+    await _repo.delete(id);
   }
 }
 

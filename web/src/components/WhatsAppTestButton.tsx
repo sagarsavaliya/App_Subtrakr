@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { runWhatsAppTest } from "@/app/admin/actions";
+import { useToast } from "@/components/Toaster";
 import type { WhatsAppDiagnostic } from "@/lib/whatsapp";
 
 export function WhatsAppTestButton() {
@@ -9,13 +10,19 @@ export function WhatsAppTestButton() {
   const [result, setResult] = useState<
     WhatsAppDiagnostic | { notConfigured: true } | null
   >(null);
+  const toast = useToast();
 
   async function run() {
     setLoading(true);
     setResult(null);
-    const r = await runWhatsAppTest();
-    setResult(r);
-    setLoading(false);
+    try {
+      const r = await runWhatsAppTest();
+      setResult(r);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not run the test.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

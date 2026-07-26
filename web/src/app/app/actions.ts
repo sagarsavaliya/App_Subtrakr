@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
-export async function addSubscription(formData: FormData) {
+type ActionResult = { ok: boolean; message?: string };
+
+export async function addSubscription(formData: FormData): Promise<ActionResult> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -17,10 +19,13 @@ export async function addSubscription(formData: FormData) {
   const entityId = String(formData.get("entity_id") ?? "");
   const name = String(formData.get("name") ?? "").trim();
 
-  // Bad input renders a message instead of a server-error page.
-  if (!name || !entityId || !Number.isFinite(amount) || amount <= 0 ||
-      Number.isNaN(new Date(startDate).getTime())) {
-    redirect("/app/new?error=1");
+  if (!name) return { ok: false, message: "Enter a service name." };
+  if (!entityId) return { ok: false, message: "Choose an entity." };
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { ok: false, message: "Enter a valid amount." };
+  }
+  if (Number.isNaN(new Date(startDate).getTime())) {
+    return { ok: false, message: "Choose a valid first charge date." };
   }
 
   const nextDue = computeNextDue(new Date(startDate), cycle);
@@ -39,14 +44,14 @@ export async function addSubscription(formData: FormData) {
   });
   if (error) {
     console.error("addSubscription failed:", error.message);
-    redirect("/app/new?error=1");
+    return { ok: false, message: "Could not save that subscription. Try again." };
   }
 
   revalidatePath("/app");
-  redirect("/app");
+  return { ok: true, message: `${name} added.` };
 }
 
-export async function addEntity(formData: FormData) {
+export async function addEntity(formData: FormData): Promise<ActionResult> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -55,7 +60,7 @@ export async function addEntity(formData: FormData) {
 
   const name = String(formData.get("name") ?? "").trim();
   const gstNumber = String(formData.get("gst_number") ?? "").trim();
-  if (!name) redirect("/app/profile?error=1");
+  if (!name) return { ok: false, message: "Enter a business name." };
 
   // Re-check the plan's entity cap server-side — the UI already hides the
   // form once at the limit, but that's not a security boundary on its own.
@@ -68,7 +73,10 @@ export async function addEntity(formData: FormData) {
   const freeMax = 1; // no subscriber_billing row at all means the Free plan's cap
   const limit = billing ? maxEntities : freeMax;
   if (limit !== null && limit !== undefined && (count ?? 0) >= limit) {
-    redirect("/app/profile?error=limit");
+    return {
+      ok: false,
+      message: `Your plan allows ${limit} ${limit === 1 ? "entity" : "entities"} — upgrade to add another business.`,
+    };
   }
 
   const { error } = await supabase.from("entities").insert({
@@ -79,31 +87,30 @@ export async function addEntity(formData: FormData) {
   });
   if (error) {
     console.error("addEntity failed:", error.message);
-    redirect("/app/profile?error=1");
+    return { ok: false, message: "Could not save that business. Try again." };
   }
 
   revalidatePath("/app/profile");
   revalidatePath("/app");
-  redirect("/app/profile");
+  return { ok: true, message: `${name} added.` };
 }
 
-export async function deleteSubscription(formData: FormData) {
+export async function deleteSubscription(formData: FormData): Promise<ActionResult> {
   const supabase = await createClient();
   const id = String(formData.get("id"));
   // RLS restricts to the user's own rows; children first (no CASCADE).
   await supabase.from("invoices").delete().eq("subscription_id", id);
   await supabase.from("payment_history").delete().eq("subscription_id", id);
   const { error } = await supabase.from("subscriptions").delete().eq("id", id);
-  if (error) console.error("deleteSubscription failed:", error.message);
+  if (error) {
+    console.error("deleteSubscription failed:", error.message);
+    return { ok: false, message: "Could not delete that subscription. Try again." };
+  }
   revalidatePath("/app");
-  // Unconditional redirect: harmless when called from the dashboard list
-  // (already on /app), and required when called from the now-deleted
-  // subscription's own detail page — it can't stay on a page for
-  // something that no longer exists.
-  redirect("/app");
+  return { ok: true };
 }
 
-export async function markPaid(formData: FormData) {
+export async function markPaid(formData: FormData): Promise<ActionResult> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -116,14 +123,14 @@ export async function markPaid(formData: FormData) {
     .select("amount, currency, next_due_date, billing_cycle, custom_cycle_days")
     .eq("id", id)
     .single();
-  if (!sub) return;
+  if (!sub) return { ok: false, message: "That subscription no longer exists." };
 
   const now = new Date();
   const due = new Date(sub.next_due_date);
   const base = due < now ? now : due;
   const nextDue = computeNextDue(base, sub.billing_cycle, sub.custom_cycle_days);
 
-  await supabase.from("payment_history").insert({
+  const { error: insertError } = await supabase.from("payment_history").insert({
     user_id: user.id,
     subscription_id: id,
     paid_date: now.toISOString().slice(0, 10),
@@ -131,7 +138,12 @@ export async function markPaid(formData: FormData) {
     currency: sub.currency,
     source: "manual",
   });
-  await supabase
+  if (insertError) {
+    console.error("markPaid insert failed:", insertError.message);
+    return { ok: false, message: "Could not record that payment. Try again." };
+  }
+
+  const { error: updateError } = await supabase
     .from("subscriptions")
     .update({
       status: "active",
@@ -139,9 +151,14 @@ export async function markPaid(formData: FormData) {
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);
+  if (updateError) {
+    console.error("markPaid update failed:", updateError.message);
+    return { ok: false, message: "Payment recorded, but the next due date didn't update." };
+  }
 
   revalidatePath("/app");
   revalidatePath(`/app/subscription/${id}`);
+  return { ok: true };
 }
 
 function computeNextDue(
