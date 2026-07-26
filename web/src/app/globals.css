@@ -88,5 +88,11 @@ body {
    is tuned for small CTA buttons; at hero-panel size the same alpha reads
    as a heavy, distracting halo rather than a subtle lift. */
 .hero-glow {
-  box-shadow: 0 12px 48px rgba(46, 196, 160, 0.14);
+  box-shadow: 0 10px 40px rgba(46, 196, 160, 0.07);
+}
+/* Softer button glow — for secondary-emphasis CTAs (e.g. "Add subscription"
+   next to the entity filter row) where the full-strength glow-shadow reads
+   as too dense against surrounding chips. */
+.btn-glow {
+  box-shadow: 0 4px 16px rgba(46, 196, 160, 0.18);
 }

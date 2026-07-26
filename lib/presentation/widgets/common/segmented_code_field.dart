@@ -40,7 +40,6 @@ class SegmentedCodeField extends StatefulWidget {
 }
 
 class _SegmentedCodeFieldState extends State<SegmentedCodeField> {
-  static const _boxWidth = 46.0;
   static const _boxHeight = 54.0;
   static const _gap = 8.0;
 
@@ -95,73 +94,97 @@ class _SegmentedCodeFieldState extends State<SegmentedCodeField> {
       valueListenable: _controller,
       builder: (context, value, _) {
         final text = value.text;
-        return Stack(
-          alignment: Alignment.center,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(widget.length, (i) {
-                final filled = i < text.length;
-                final isCursorBox = i == text.length && _focusNode.hasFocus;
-                return Padding(
-                  padding: EdgeInsets.only(left: i == 0 ? 0 : _gap),
-                  child: GlassSurface(
-                    borderRadius: 14,
-                    border: Border.all(
-                      color: isCursorBox
-                          ? AppColors.glassBorderAccent
-                          : AppColors.glassBorder,
-                      width: isCursorBox ? 1.5 : 1,
-                    ),
-                    child: SizedBox(
-                      width: _boxWidth,
-                      height: _boxHeight,
-                      child: Center(
-                        child: Text(
-                          filled ? (widget.obscure ? '•' : text[i]) : '',
-                          style: const TextStyle(
-                            fontFamily: 'DM Mono',
-                            fontSize: 20,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
+        return SizedBox(
+          height: _boxHeight,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Row(
+                // Boxes stretch to fill the full width instead of a fixed
+                // size centered in the row — matches the width of whatever
+                // input field sits above (e.g. the phone number field),
+                // rather than leaving dead space on both sides.
+                children: [
+                  for (var i = 0; i < widget.length; i++) ...[
+                    if (i > 0) const SizedBox(width: _gap),
+                    Expanded(
+                      child: _CodeBox(
+                        char: i < text.length
+                            ? (widget.obscure ? '•' : text[i])
+                            : '',
+                        isCursorBox: i == text.length && _focusNode.hasFocus,
+                        height: _boxHeight,
                       ),
                     ),
-                  ),
-                );
-              }),
-            ),
-            // The real input — invisible, but on top so taps land on it and
-            // focus/keyboard/paste/backspace all behave exactly like a
-            // normal TextField, because it is one.
-            Opacity(
-              opacity: 0,
-              child: SizedBox(
-                width: widget.length * _boxWidth + (widget.length - 1) * _gap,
-                height: _boxHeight,
-                child: TextField(
-                  controller: _controller,
-                  focusNode: _focusNode,
-                  autofocus: widget.autoFocus,
-                  enabled: widget.enabled,
-                  showCursor: false,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(widget.length),
                   ],
-                  onChanged: _handleChanged,
-                  decoration: const InputDecoration(
-                    border: InputBorder.none,
-                    counterText: '',
+                ],
+              ),
+              // The real input — invisible, but on top so taps land on it
+              // and focus/keyboard/paste/backspace all behave exactly like
+              // a normal TextField, because it is one.
+              Positioned.fill(
+                child: Opacity(
+                  opacity: 0,
+                  child: TextField(
+                    controller: _controller,
+                    focusNode: _focusNode,
+                    autofocus: widget.autoFocus,
+                    enabled: widget.enabled,
+                    showCursor: false,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(widget.length),
+                    ],
+                    onChanged: _handleChanged,
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      counterText: '',
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         );
       },
+    );
+  }
+}
+
+class _CodeBox extends StatelessWidget {
+  const _CodeBox({
+    required this.char,
+    required this.isCursorBox,
+    required this.height,
+  });
+
+  final String char;
+  final bool isCursorBox;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassSurface(
+      borderRadius: 14,
+      border: Border.all(
+        color: isCursorBox ? AppColors.glassBorderAccent : AppColors.glassBorder,
+        width: isCursorBox ? 1.5 : 1,
+      ),
+      child: SizedBox(
+        height: height,
+        child: Center(
+          child: Text(
+            char,
+            style: const TextStyle(
+              fontFamily: 'DM Mono',
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

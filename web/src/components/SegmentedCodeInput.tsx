@@ -33,7 +33,17 @@ export function SegmentedCodeInput({
   function commit(next: string[]) {
     const joined = next.join("");
     onChange(joined);
-    if (joined.length === length) onComplete?.(joined);
+    if (joined.length === length) {
+      // Deferred to the next tick — onComplete is used as
+      // `onComplete={() => formRef.current?.requestSubmit()}`, which
+      // synchronously invokes the form's submit handler. Calling it
+      // synchronously here (right after onChange) fires that handler
+      // before React has flushed the onChange state update, so the
+      // handler's closure still sees the *previous* value (one digit
+      // short) — this was the actual cause of "PIN must be 6 digits"
+      // firing even with all 6 boxes filled.
+      setTimeout(() => onComplete?.(joined), 0);
+    }
   }
 
   function handleChange(i: number, e: React.ChangeEvent<HTMLInputElement>) {
@@ -74,7 +84,7 @@ export function SegmentedCodeInput({
   }
 
   return (
-    <div role="group" aria-label={label} className="flex justify-center gap-2 sm:gap-3">
+    <div role="group" aria-label={label} className="flex justify-between gap-2">
       {chars.map((digit, i) => (
         <input
           key={i}

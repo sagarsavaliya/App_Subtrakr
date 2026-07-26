@@ -100,7 +100,7 @@ export default async function DashboardPage({
         <div className="flex-1" />
         <Link
           href="/app/new"
-          className="brand-gradient glow-shadow rounded-full px-5 py-2 text-sm font-bold text-[#08201a] transition-transform duration-150 hover:scale-105 active:scale-95"
+          className="brand-gradient btn-glow rounded-full px-5 py-2 text-sm font-bold text-[#08201a] transition-transform duration-150 hover:scale-105 active:scale-95"
         >
           + Add subscription
         </Link>
