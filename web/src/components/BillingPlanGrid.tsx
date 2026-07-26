@@ -27,11 +27,23 @@ type Plan = {
   sort_order: number;
 };
 
+type Category = "personal" | "business";
+
+/** Personal-only entity cap (exactly 1, always) vs. anything that adds
+ *  business entities (a fixed extra allowance, or unlimited) — derived
+ *  from max_entities rather than a hardcoded code list, so a future plan
+ *  slots into the right tab automatically. */
+function categoryOf(plan: Plan): Category {
+  return plan.max_entities === 1 ? "personal" : "business";
+}
+
 /** One cycle picked once for the whole grid, instead of a repeated 4-way
  *  toggle on every card (that version both looked noisy and wrapped into
  *  an ugly vertical stack in a narrow card). Cards themselves only show
  *  the price for whichever cycle is selected — the other three aren't
- *  duplicated as extra text underneath anymore. */
+ *  duplicated as extra text underneath anymore. A second Personal/Business
+ *  toggle filters which plans show at all, since showing all 5 side by
+ *  side made it harder to tell which ones actually apply to you. */
 export function BillingPlanGrid({
   plans,
   currentCode,
@@ -46,9 +58,40 @@ export function BillingPlanGrid({
   paymentsReady: boolean;
 }) {
   const [cycle, setCycle] = useState<BillingCycle>("monthly");
+  const currentPlan = plans.find((p) => p.code === currentCode);
+  const [category, setCategory] = useState<Category>(
+    currentPlan ? categoryOf(currentPlan) : "personal",
+  );
+
+  const visiblePlans = plans.filter((p) => categoryOf(p) === category);
+  const cardWidthClass =
+    visiblePlans.length <= 2
+      ? "sm:w-[calc(50%-0.625rem)] lg:w-96"
+      : "sm:w-[calc(50%-0.625rem)] lg:w-[calc(33.333%-0.834rem)]";
 
   return (
     <div>
+      <div className="mb-4 flex justify-center">
+        <div className="glass inline-flex gap-1 rounded-full p-1">
+          {(["personal", "business"] as const).map((c) => (
+            <button
+              key={c}
+              onClick={() => setCategory(c)}
+              className={`rounded-full px-5 py-1.5 text-sm capitalize transition-colors ${
+                category === c ? "brand-gradient font-semibold text-[#08201a]" : "text-ink-2 hover:text-ink"
+              }`}
+            >
+              {c}
+            </button>
+          ))}
+        </div>
+      </div>
+      <p className="mb-6 text-center text-xs text-ink-3">
+        {category === "personal"
+          ? "Just your own subscriptions, on one personal entity."
+          : "Track subscriptions across your business entities too."}
+      </p>
+
       <div className="mb-8 flex justify-center">
         <div className="glass inline-flex gap-1 rounded-full p-1">
           {BILLING_CYCLES.map((c) => (
@@ -66,7 +109,7 @@ export function BillingPlanGrid({
       </div>
 
       <div className="flex flex-wrap justify-center gap-5">
-        {plans.map((plan) => {
+        {visiblePlans.map((plan) => {
           const isCurrent = plan.code === currentCode;
           const highlight = plan.code === "pro";
           const isFree = plan.sort_order === 0;
@@ -75,7 +118,7 @@ export function BillingPlanGrid({
           return (
             <div
               key={plan.id}
-              className={`w-full rounded-3xl p-6 sm:w-[calc(50%-0.625rem)] lg:w-[calc(33.333%-0.834rem)] ${
+              className={`w-full rounded-3xl p-6 ${cardWidthClass} ${
                 highlight ? "glass-strong border-glow/30 glow-shadow" : "glass"
               }`}
             >
