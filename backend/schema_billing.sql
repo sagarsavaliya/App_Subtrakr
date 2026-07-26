@@ -78,13 +78,15 @@ CREATE TABLE IF NOT EXISTS app_settings (
 ALTER TABLE app_settings ENABLE ROW LEVEL SECURITY;
 -- No policies — service_role only, by design.
 
--- ── Plans (Free / Pro / Team) ────────────────────────────────────────────
+-- ── Plans (Free / Starter / Personal / Business Lite / Business) ────────
 CREATE TABLE IF NOT EXISTS plans (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  code TEXT UNIQUE NOT NULL,             -- 'free', 'pro', 'team'
+  code TEXT UNIQUE NOT NULL,             -- 'free', 'starter', 'pro', 'business_lite', 'team'
   name TEXT NOT NULL,
   description TEXT,
   price_monthly DECIMAL(10,2),
+  price_quarterly DECIMAL(10,2),
+  price_half_yearly DECIMAL(10,2),
   price_yearly DECIMAL(10,2),
   currency TEXT DEFAULT 'INR',
   max_entities INTEGER,                  -- NULL = unlimited
@@ -95,6 +97,11 @@ CREATE TABLE IF NOT EXISTS plans (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+-- Retrofit for databases where `plans` already existed before this file
+-- added these two columns — must run before the seed UPSERT below, which
+-- writes to them. Safe to re-run every deploy.
+ALTER TABLE plans ADD COLUMN IF NOT EXISTS price_quarterly DECIMAL(10,2);
+ALTER TABLE plans ADD COLUMN IF NOT EXISTS price_half_yearly DECIMAL(10,2);
 ALTER TABLE plans ENABLE ROW LEVEL SECURITY;
 -- Plans are public info (pricing page needs them) — readable by anyone,
 -- writable only by service_role (admin UI).
@@ -108,7 +115,7 @@ CREATE TABLE IF NOT EXISTS subscriber_billing (
   user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL UNIQUE,
   plan_id UUID REFERENCES plans NOT NULL,
   status TEXT CHECK (status IN ('active','trialing','past_due','cancelled','expired')) DEFAULT 'trialing',
-  billing_cycle TEXT CHECK (billing_cycle IN ('monthly','yearly')) DEFAULT 'monthly',
+  billing_cycle TEXT CHECK (billing_cycle IN ('monthly','quarterly','half_yearly','yearly')) DEFAULT 'monthly',
   razorpay_customer_id TEXT,
   razorpay_subscription_id TEXT,
   current_period_start TIMESTAMPTZ,
@@ -156,13 +163,31 @@ GRANT SELECT ON plans, subscriber_billing, billing_transactions TO authenticated
 GRANT USAGE ON SCHEMA public TO anon;
 GRANT SELECT ON plans TO anon;
 
--- Seed the default plans if they don't already exist.
-INSERT INTO plans (code, name, description, price_monthly, price_yearly, max_entities, max_subscriptions, sort_order)
+-- Seed/reprice the plans — 5 tiers now instead of 3. Codes 'free'/'pro'/
+-- 'team' are kept as-is (not renamed) even though their display names
+-- changed ("Pro" -> "Personal", "Team" -> "Business") so any existing
+-- subscriber_billing.plan_id FK stays valid; 'starter' and 'business_lite'
+-- are new rows filling the gap between them. DO UPDATE (not DO NOTHING)
+-- because this is a real repricing that must actually apply to rows that
+-- already exist in prod from the original 3-tier seed.
+INSERT INTO plans (code, name, description, price_monthly, price_quarterly, price_half_yearly, price_yearly, max_entities, max_subscriptions, sort_order)
 VALUES
-  ('free', 'Free', 'Track up to 3 subscriptions on your personal entity.', 0, 0, 1, 3, 0),
-  ('pro', 'Pro', 'Unlimited subscriptions, business entities, GST export, invoice vault.', 149, 1490, NULL, NULL, 1),
-  ('team', 'Team', 'Everything in Pro, for your whole finance team.', 499, 4990, NULL, NULL, 2)
-ON CONFLICT (code) DO NOTHING;
+  ('free', 'Free', 'Track up to 5 subscriptions on your personal entity.', 0, 0, 0, 0, 1, 5, 0),
+  ('starter', 'Starter', 'Up to 10 subscriptions on your personal entity.', 29, 79, 139, 239, 1, 10, 1),
+  ('pro', 'Personal', 'Unlimited subscriptions on your personal entity, GST export, invoice vault.', 49, 129, 229, 399, 1, NULL, 2),
+  ('business_lite', 'Business Lite', 'Unlimited subscriptions across your personal entity plus 2 business entities.', 99, 259, 459, 799, 3, NULL, 3),
+  ('team', 'Business', 'Unlimited subscriptions across your personal entity plus unlimited business entities.', 149, 389, 699, 1199, NULL, NULL, 4)
+ON CONFLICT (code) DO UPDATE SET
+  name = EXCLUDED.name,
+  description = EXCLUDED.description,
+  price_monthly = EXCLUDED.price_monthly,
+  price_quarterly = EXCLUDED.price_quarterly,
+  price_half_yearly = EXCLUDED.price_half_yearly,
+  price_yearly = EXCLUDED.price_yearly,
+  max_entities = EXCLUDED.max_entities,
+  max_subscriptions = EXCLUDED.max_subscriptions,
+  sort_order = EXCLUDED.sort_order,
+  updated_at = NOW();
 
 -- Bootstrap the owner as super admin. Each no-ops until that email has
 -- actually signed up (auth.users row exists); promotes automatically on
@@ -192,3 +217,10 @@ ALTER TABLE billing_transactions DROP CONSTRAINT IF EXISTS billing_transactions_
   ADD CONSTRAINT billing_transactions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE billing_transactions DROP CONSTRAINT IF EXISTS billing_transactions_subscriber_billing_id_fkey,
   ADD CONSTRAINT billing_transactions_subscriber_billing_id_fkey FOREIGN KEY (subscriber_billing_id) REFERENCES subscriber_billing(id) ON DELETE CASCADE;
+
+-- Retrofit the wider billing_cycle CHECK (quarterly/half_yearly added
+-- alongside the existing monthly/yearly) onto databases where the
+-- constraint already existed with just the original two values.
+ALTER TABLE subscriber_billing DROP CONSTRAINT IF EXISTS subscriber_billing_billing_cycle_check;
+ALTER TABLE subscriber_billing ADD CONSTRAINT subscriber_billing_billing_cycle_check
+  CHECK (billing_cycle IN ('monthly','quarterly','half_yearly','yearly'));
