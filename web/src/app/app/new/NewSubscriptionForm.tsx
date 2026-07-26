@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { addSubscription } from "../actions";
 import { ActionForm } from "@/components/ActionForm";
@@ -29,13 +30,26 @@ const CYCLES = [
 ];
 
 type Entity = { id: string; name: string; type: string };
+type PaymentMethod = { id: string; entity_id: string; label: string };
 
 const inputClass =
   "glass w-full rounded-xl px-4 py-3 text-sm outline-none placeholder:text-ink-3 focus:border-glow/40 [color-scheme:dark]";
 
-export function NewSubscriptionForm({ entities }: { entities: Entity[] }) {
+export function NewSubscriptionForm({
+  entities,
+  paymentMethods,
+}: {
+  entities: Entity[];
+  paymentMethods: PaymentMethod[];
+}) {
   const router = useRouter();
   const today = new Date().toISOString().slice(0, 10);
+  const [entityId, setEntityId] = useState(entities[0]?.id ?? "");
+
+  // Payment methods are entity-specific — only offer the ones that belong
+  // to whichever entity is currently selected above, same scoping as the
+  // Profile page's payment methods section.
+  const entityMethods = paymentMethods.filter((m) => m.entity_id === entityId);
 
   return (
     <ActionForm
@@ -100,10 +114,32 @@ export function NewSubscriptionForm({ entities }: { entities: Entity[] }) {
               <label className="mb-1 block text-xs text-ink-2">Entity</label>
               <CustomSelect
                 name="entity_id"
-                defaultValue={entities[0]?.id}
+                defaultValue={entityId}
                 options={entities.map((e) => ({ value: e.id, label: e.name }))}
+                onChange={setEntityId}
               />
             </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs text-ink-2">
+              Payment method (optional)
+            </label>
+            {/* key={entityId} forces a remount on entity change — this is
+                an uncontrolled component (defaultValue only applies on
+                mount), so without it a payment method picked for a
+                previous entity would keep showing selected here even
+                though it no longer belongs to the newly-chosen entity. */}
+            <CustomSelect
+              key={entityId}
+              name="payment_method_id"
+              defaultValue=""
+              placeholder="Not tracked"
+              options={[
+                { value: "", label: "Not tracked" },
+                ...entityMethods.map((m) => ({ value: m.id, label: m.label })),
+              ]}
+            />
           </div>
 
           <label className="flex items-center gap-3 text-sm text-ink-2">

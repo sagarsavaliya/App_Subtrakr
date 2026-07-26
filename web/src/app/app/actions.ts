@@ -98,6 +98,7 @@ export async function addSubscription(formData: FormData): Promise<ActionResult>
   }
 
   const nextDue = computeNextDue(new Date(startDate), cycle);
+  const paymentMethodId = String(formData.get("payment_method_id") ?? "") || null;
 
   const { error } = await supabase.from("subscriptions").insert({
     user_id: user.id,
@@ -110,6 +111,7 @@ export async function addSubscription(formData: FormData): Promise<ActionResult>
     next_due_date: nextDue.toISOString().slice(0, 10),
     is_auto_debit: formData.get("is_auto_debit") === "on",
     status: "active",
+    payment_method_id: paymentMethodId,
   });
   if (error) {
     console.error("addSubscription failed:", error.message);

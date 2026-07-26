@@ -4,11 +4,13 @@ import { NewSubscriptionForm } from "./NewSubscriptionForm";
 
 export default async function NewSubscriptionPage() {
   const supabase = await createClient();
-  const [{ data: entities }, { data: billing }, { count }] = await Promise.all([
-    supabase.from("entities").select("id, name, type").order("type"),
-    supabase.from("subscriber_billing").select("*, plans(max_subscriptions)").maybeSingle(),
-    supabase.from("subscriptions").select("id", { count: "exact", head: true }),
-  ]);
+  const [{ data: entities }, { data: billing }, { count }, { data: paymentMethods }] =
+    await Promise.all([
+      supabase.from("entities").select("id, name, type").order("type"),
+      supabase.from("subscriber_billing").select("*, plans(max_subscriptions)").maybeSingle(),
+      supabase.from("subscriptions").select("id", { count: "exact", head: true }),
+      supabase.from("payment_methods").select("id, entity_id, label"),
+    ]);
 
   const maxSubscriptions = (
     billing?.plans as unknown as { max_subscriptions: number | null } | null
@@ -17,7 +19,7 @@ export default async function NewSubscriptionPage() {
   const atLimit = limit !== null && limit !== undefined && (count ?? 0) >= limit;
 
   return (
-    <div className="mx-auto max-w-lg">
+    <div className="mx-auto max-w-2xl">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-xl font-semibold">Add subscription</h1>
         <Link href="/app" className="text-sm text-ink-2 hover:text-ink">
@@ -34,7 +36,7 @@ export default async function NewSubscriptionPage() {
           to track more.
         </div>
       ) : (
-        <NewSubscriptionForm entities={entities ?? []} />
+        <NewSubscriptionForm entities={entities ?? []} paymentMethods={paymentMethods ?? []} />
       )}
     </div>
   );
