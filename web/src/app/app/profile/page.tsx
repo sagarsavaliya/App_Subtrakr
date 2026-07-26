@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/format";
 import { AddEntityForm } from "@/components/AddEntityForm";
 import { BuildingIcon } from "@/components/icons";
+import { ProfileEmailSection } from "@/components/ProfileEmailSection";
 
 export default async function ProfilePage() {
   const supabase = await createClient();
@@ -42,6 +43,14 @@ export default async function ProfilePage() {
             </p>
           )}
         </div>
+      </div>
+
+      <h2 className="mb-3 text-sm font-semibold text-ink-2">Email</h2>
+      <div className="mb-5">
+        <ProfileEmailSection
+          initialEmail={user?.email ?? null}
+          initialConfirmed={!!user?.email_confirmed_at}
+        />
       </div>
 
       <h2 className="mb-3 text-sm font-semibold text-ink-2">Entities</h2>

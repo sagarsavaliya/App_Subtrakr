@@ -72,6 +72,12 @@ services:
       # secret involved.
       GOTRUE_MAILER_TEMPLATES_MAGIC_LINK: https://subtrakr.me/email-templates/otp.html
       GOTRUE_MAILER_SUBJECTS_MAGIC_LINK: "Your SubTrakr verification code"
+      # Profile "add/verify email" flow (auth.updateUser({ email })) uses
+      # this DIFFERENT template/subject pair from signup's magic-link one
+      # above — same typed-code HTML, just its own subject line, and
+      # verified via verifyOtp({..., type: "email_change"}) not "email".
+      GOTRUE_MAILER_TEMPLATES_EMAIL_CHANGE: https://subtrakr.me/email-templates/otp.html
+      GOTRUE_MAILER_SUBJECTS_EMAIL_CHANGE: "Confirm your new SubTrakr email"
       GOTRUE_EXTERNAL_GOOGLE_ENABLED: "false"
       # Mobile number + 6-digit PIN is the primary credential (PRD F1).
       # Verification is WhatsApp-only by design (no SMS gateway, ever —
