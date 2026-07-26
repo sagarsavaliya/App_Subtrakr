@@ -20,6 +20,25 @@ function isNextRedirectError(e: unknown): boolean {
   );
 }
 
+/** Never surface a raw/empty error to the user — a bare "{}" (which
+ *  Error.message can produce when something upstream JSON.stringifies an
+ *  Error, since `message` isn't enumerable) or "[object Object]" is worse
+ *  than no detail at all. Also recognizes the classic "stale server
+ *  action" symptom: the page was open from before the last deploy landed,
+ *  so its embedded action reference 404s against the redeployed server —
+ *  a plain refresh fixes it, which a generic "try again" message doesn't
+ *  communicate. */
+function friendlyErrorMessage(e: unknown): string {
+  const fallback = "That didn't work — try again.";
+  if (!(e instanceof Error)) return fallback;
+  const msg = e.message?.trim();
+  if (!msg || msg === "{}" || msg === "[object Object]") return fallback;
+  if (/fetch|network|404|failed to load/i.test(msg)) {
+    return "That didn't work — refresh the page and try again (a new version may have just deployed).";
+  }
+  return msg;
+}
+
 /** Every button/form that calls a server action should use this — it's the
  *  one place pending state, success/error toasts, and redirect passthrough
  *  are handled, so no button silently does nothing when it fails. */
@@ -44,7 +63,7 @@ export function useServerAction<Args extends unknown[]>(
       } catch (e) {
         if (isNextRedirectError(e)) throw e;
         console.error("Server action failed:", e);
-        toast.error(e instanceof Error ? e.message : "That didn't work — try again.");
+        toast.error(friendlyErrorMessage(e));
       }
     });
   }
