@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import {
   adminSuspendUser,
   adminUnbanUser,
-  adminSendPasswordReset,
+  adminSendPinReset,
   adminDeleteUser,
 } from "@/app/admin/actions";
 import { useServerAction } from "@/lib/useServerAction";
@@ -39,14 +39,12 @@ export function SuspendToggleButton({ userId, banned }: { userId: string; banned
   );
 }
 
-export function SendPasswordResetButton({ email }: { email: string | null }) {
-  const { run, pending } = useServerAction(adminSendPasswordReset);
-
-  if (!email) return null;
+export function SendPinResetButton({ userId }: { userId: string }) {
+  const { run, pending } = useServerAction(adminSendPinReset);
 
   function onClick() {
     const fd = new FormData();
-    fd.set("email", email as string);
+    fd.set("user_id", userId);
     run(fd);
   }
 
@@ -59,7 +57,7 @@ export function SendPasswordResetButton({ email }: { email: string | null }) {
       className={`${btnClass} text-ink-2 hover:border-white/20`}
     >
       <MailIcon />
-      {pending ? "Sending…" : "Send password reset"}
+      {pending ? "Sending…" : "Send PIN reset code"}
     </motion.button>
   );
 }

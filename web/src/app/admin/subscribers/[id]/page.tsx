@@ -6,7 +6,7 @@ import { formatDate, formatINR, monthlyEquivalent } from "@/lib/format";
 import { ArrowLeftIcon, BuildingIcon } from "@/components/icons";
 import {
   SuspendToggleButton,
-  SendPasswordResetButton,
+  SendPinResetButton,
   DeleteAccountButton,
 } from "@/components/admin/SubscriberActions";
 import { PlanOverrideForm } from "@/components/admin/PlanOverrideForm";
@@ -125,7 +125,7 @@ export default async function SubscriberDetailPage({
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <SendPasswordResetButton email={user.email ?? null} />
+          <SendPinResetButton userId={user.id} />
           <SuspendToggleButton userId={user.id} banned={banned} />
           {admin?.role === "super_admin" && (
             <DeleteAccountButton userId={user.id} name={name} />

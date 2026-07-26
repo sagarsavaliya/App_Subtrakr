@@ -6,6 +6,7 @@ import { getAdminIdentity } from "@/lib/adminAuth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { setSetting } from "@/lib/settings";
 import { testWhatsAppConnection, type WhatsAppDiagnostic } from "@/lib/whatsapp";
+import { sendPhoneOtp } from "@/lib/otpChallenge";
 
 /** Every mutating action returns this instead of throwing on expected
  *  failures (a bad password, a plan still in use, missing permission) —
@@ -65,16 +66,29 @@ export async function adminDeleteUser(formData: FormData): Promise<ActionResult>
   redirect("/admin/subscribers?deleted=1");
 }
 
-export async function adminSendPasswordReset(formData: FormData): Promise<ActionResult> {
+/** Fires a PIN-reset verification code on every channel the account
+ *  actually has (email and/or WhatsApp) — same dual-channel behavior as
+ *  the subscriber's own self-service "Forgot PIN", just triggered by an
+ *  admin instead of the subscriber typing their own identifier. The
+ *  subscriber finishes it themselves via the login page's Forgot PIN flow. */
+export async function adminSendPinReset(formData: FormData): Promise<ActionResult> {
   await requireAdmin();
-  const email = String(formData.get("email") ?? "");
-  if (!email) return { ok: false, message: "This account has no email to send a reset link to." };
+  const userId = String(formData.get("user_id") ?? "");
   const db = createAdminClient();
-  const { error } = await db.auth.resetPasswordForEmail(email, {
-    redirectTo: "https://subtrakr.me/reset-password",
-  });
-  if (error) return { ok: false, message: error.message };
-  return { ok: true, message: `Reset link sent to ${email}.` };
+  const { data, error } = await db.auth.admin.getUserById(userId);
+  if (error || !data?.user) return { ok: false, message: "Could not find that account." };
+
+  const { email, phone } = data.user;
+  const sends: Promise<unknown>[] = [];
+  if (phone) sends.push(sendPhoneOtp(`+${phone}`));
+  if (email) {
+    sends.push(db.auth.signInWithOtp({ email, options: { shouldCreateUser: false } }));
+  }
+  if (!sends.length) {
+    return { ok: false, message: "This account has no email or phone on file." };
+  }
+  await Promise.allSettled(sends);
+  return { ok: true, message: "Verification code sent — ask them to use Forgot PIN to finish." };
 }
 
 /** Manual plan override (comping an account, support gestures) — separate
