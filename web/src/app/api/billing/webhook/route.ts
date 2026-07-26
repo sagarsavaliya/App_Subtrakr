@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSetting } from "@/lib/settings";
 import { verifyWebhookSignature } from "@/lib/razorpay";
+import { isBillingCycle, addCyclePeriod } from "@/lib/billingCycle";
 
 /** Razorpay webhook — the authoritative backup for payment.captured (e.g.
  *  the user closed the tab before the checkout handler ran). Idempotent on
@@ -40,9 +41,9 @@ export async function POST(request: Request) {
   const payment = event.payload?.payment?.entity;
   const userId = payment?.notes?.user_id;
   const planCode = payment?.notes?.plan_code;
-  const cycle = payment?.notes?.cycle === "yearly" ? "yearly" : "monthly";
-  if (!payment || !userId || !planCode) {
-    return NextResponse.json({ ok: true, ignored: "missing notes" });
+  const cycle = payment?.notes?.cycle;
+  if (!payment || !userId || !planCode || !isBillingCycle(cycle)) {
+    return NextResponse.json({ ok: true, ignored: "missing or invalid notes" });
   }
 
   const db = createAdminClient();
@@ -62,9 +63,7 @@ export async function POST(request: Request) {
   if (!plan) return NextResponse.json({ ok: true, ignored: "unknown plan" });
 
   const now = new Date();
-  const periodEnd = new Date(now);
-  if (cycle === "yearly") periodEnd.setFullYear(periodEnd.getFullYear() + 1);
-  else periodEnd.setMonth(periodEnd.getMonth() + 1);
+  const periodEnd = addCyclePeriod(now, cycle);
 
   const { data: billingRow } = await db
     .from("subscriber_billing")

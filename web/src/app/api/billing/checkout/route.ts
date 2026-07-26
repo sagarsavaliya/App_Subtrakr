@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createOrder } from "@/lib/razorpay";
+import { isBillingCycle, priceForCycle } from "@/lib/billingCycle";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -13,16 +14,16 @@ export async function POST(request: Request) {
 
   const { planCode, cycle } = (await request.json()) as {
     planCode: string;
-    cycle: "monthly" | "yearly";
+    cycle: string;
   };
-  if (!["monthly", "yearly"].includes(cycle)) {
+  if (!isBillingCycle(cycle)) {
     return NextResponse.json({ error: "Invalid cycle" }, { status: 400 });
   }
 
   // Server-side price lookup — the client never chooses the amount.
   const { data: plan } = await supabase
     .from("plans")
-    .select("id, code, price_monthly, price_yearly")
+    .select("id, code, price_monthly, price_quarterly, price_half_yearly, price_yearly")
     .eq("code", planCode)
     .eq("is_active", true)
     .maybeSingle();
@@ -30,8 +31,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unknown plan" }, { status: 400 });
   }
 
-  const price = cycle === "monthly" ? plan.price_monthly : plan.price_yearly;
-  const amountPaise = Math.round(Number(price) * 100);
+  const price = Number(priceForCycle(plan, cycle));
+  const amountPaise = Math.round(price * 100);
 
   const order = await createOrder({
     amountPaise,

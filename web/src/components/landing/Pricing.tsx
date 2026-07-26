@@ -9,6 +9,8 @@ export type LandingPlan = {
   name: string;
   description: string | null;
   price_monthly: number;
+  price_quarterly: number;
+  price_half_yearly: number;
   price_yearly: number;
   max_entities: number | null;
   max_subscriptions: number | null;
@@ -33,7 +35,7 @@ export function Pricing({ plans }: { plans: LandingPlan[] }) {
         </p>
       </motion.div>
 
-      <div className="grid gap-6 md:grid-cols-3">
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {plans.map((plan, i) => {
           const highlight = plan.code === "pro";
           return (
@@ -64,7 +66,8 @@ export function Pricing({ plans }: { plans: LandingPlan[] }) {
               </p>
               {plan.price_yearly > 0 && (
                 <p className="mt-1 text-xs text-ink-3">
-                  {formatINR(plan.price_yearly)}/yr — 2 months free
+                  {formatINR(plan.price_quarterly)}/qtr · {formatINR(plan.price_half_yearly)}/half-yr ·{" "}
+                  {formatINR(plan.price_yearly)}/yr
                 </p>
               )}
               <ul className="mt-6 space-y-2 text-sm text-ink-2">
@@ -83,7 +86,6 @@ export function Pricing({ plans }: { plans: LandingPlan[] }) {
                 <li>✓ Renewal reminders</li>
                 {plan.code !== "free" && <li>✓ GST-ready PDF/CSV exports</li>}
                 {plan.code !== "free" && <li>✓ Invoice vault</li>}
-                {plan.code === "team" && <li>✓ Whole-team access</li>}
               </ul>
               <Link
                 href="/login?mode=signup"

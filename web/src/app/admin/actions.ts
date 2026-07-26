@@ -211,6 +211,12 @@ function computeNextDue(from: Date, cycle: string, customDays?: number | null): 
   return d;
 }
 
+// A blank cap field means "unlimited" (NULL in the DB), not zero.
+function parseCap(value: FormDataEntryValue | null): number | null {
+  const s = String(value ?? "").trim();
+  return s === "" ? null : Number(s);
+}
+
 export async function updatePlan(formData: FormData): Promise<ActionResult> {
   await requireAdmin();
   const db = createAdminClient();
@@ -222,7 +228,11 @@ export async function updatePlan(formData: FormData): Promise<ActionResult> {
       name: String(formData.get("name")).trim(),
       description: String(formData.get("description")).trim(),
       price_monthly: Number(formData.get("price_monthly")),
+      price_quarterly: Number(formData.get("price_quarterly")),
+      price_half_yearly: Number(formData.get("price_half_yearly")),
       price_yearly: Number(formData.get("price_yearly")),
+      max_entities: parseCap(formData.get("max_entities")),
+      max_subscriptions: parseCap(formData.get("max_subscriptions")),
       is_active: formData.get("is_active") === "on",
       updated_at: new Date().toISOString(),
     })

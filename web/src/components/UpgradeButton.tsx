@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatINR } from "@/lib/format";
 import { useToast } from "@/components/Toaster";
+import { BILLING_CYCLES, cycleLabel, priceForCycle, type BillingCycle } from "@/lib/billingCycle";
 
 declare global {
   interface Window {
@@ -25,18 +26,28 @@ function loadCheckoutJs(): Promise<void> {
 export function UpgradeButton({
   planCode,
   priceMonthly,
+  priceQuarterly,
+  priceHalfYearly,
   priceYearly,
   disabled,
 }: {
   planCode: string;
   priceMonthly: number;
+  priceQuarterly: number;
+  priceHalfYearly: number;
   priceYearly: number;
   disabled?: boolean;
 }) {
   const router = useRouter();
   const toast = useToast();
-  const [cycle, setCycle] = useState<"monthly" | "yearly">("monthly");
+  const [cycle, setCycle] = useState<BillingCycle>("monthly");
   const [busy, setBusy] = useState(false);
+  const prices = {
+    price_monthly: priceMonthly,
+    price_quarterly: priceQuarterly,
+    price_half_yearly: priceHalfYearly,
+    price_yearly: priceYearly,
+  };
 
   async function upgrade() {
     setBusy(true);
@@ -56,7 +67,7 @@ export function UpgradeButton({
         amount: amountPaise,
         currency: "INR",
         name: "SubTrakr",
-        description: `${planCode.toUpperCase()} · ${cycle}`,
+        description: `${planCode.toUpperCase()} · ${cycleLabel(cycle)}`,
         prefill: { name, email },
         theme: { color: "#2EC4A0" },
         handler: async (rsp: {
@@ -84,18 +95,18 @@ export function UpgradeButton({
     }
   }
 
-  const price = cycle === "monthly" ? priceMonthly : priceYearly;
+  const price = priceForCycle(prices, cycle);
 
   return (
     <div>
-      <div className="mb-3 flex gap-2 text-xs">
-        {(["monthly", "yearly"] as const).map((c) => (
+      <div className="mb-3 flex flex-wrap gap-2 text-xs">
+        {BILLING_CYCLES.map((c) => (
           <button
             key={c}
             onClick={() => setCycle(c)}
             className={`rounded-full px-3 py-1 ${cycle === c ? "brand-gradient font-semibold text-[#08201a]" : "glass text-ink-2"}`}
           >
-            {c === "monthly" ? "Monthly" : "Yearly"}
+            {cycleLabel(c)}
           </button>
         ))}
       </div>

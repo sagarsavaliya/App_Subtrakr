@@ -9,6 +9,8 @@ type Plan = {
   name: string;
   description: string | null;
   price_monthly: number;
+  price_quarterly: number;
+  price_half_yearly: number;
   price_yearly: number;
   max_entities: number | null;
   max_subscriptions: number | null;
@@ -45,7 +47,7 @@ export default async function BillingPage() {
         </p>
       )}
 
-      <div className="mt-8 grid gap-5 md:grid-cols-3">
+      <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {(plans as Plan[] | null)?.map((plan) => {
           const isCurrent = plan.code === currentCode;
           const highlight = plan.code === "pro";
@@ -69,7 +71,8 @@ export default async function BillingPage() {
               </p>
               {plan.price_yearly > 0 && (
                 <p className="text-xs text-ink-3">
-                  or {formatINR(plan.price_yearly)}/yr (2 months free)
+                  or {formatINR(plan.price_quarterly)}/qtr · {formatINR(plan.price_half_yearly)}/half-yr ·{" "}
+                  {formatINR(plan.price_yearly)}/yr
                 </p>
               )}
               <ul className="mt-4 space-y-1.5 text-sm text-ink-2">
@@ -85,7 +88,6 @@ export default async function BillingPage() {
                 </li>
                 {plan.code !== "free" && <li>GST-ready exports</li>}
                 {plan.code !== "free" && <li>Invoice vault</li>}
-                {plan.code === "team" && <li>Team access</li>}
               </ul>
               <div className="mt-6">
                 {isCurrent ? (
@@ -96,6 +98,8 @@ export default async function BillingPage() {
                   <UpgradeButton
                     planCode={plan.code}
                     priceMonthly={plan.price_monthly}
+                    priceQuarterly={plan.price_quarterly}
+                    priceHalfYearly={plan.price_half_yearly}
                     priceYearly={plan.price_yearly}
                     disabled={!paymentsReady}
                   />

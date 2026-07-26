@@ -16,28 +16,58 @@ const FALLBACK_PLANS: LandingPlan[] = [
   {
     code: "free",
     name: "Free",
-    description: "Track up to 3 subscriptions on your personal entity.",
+    description: "Track up to 5 subscriptions on your personal entity.",
     price_monthly: 0,
+    price_quarterly: 0,
+    price_half_yearly: 0,
     price_yearly: 0,
     max_entities: 1,
-    max_subscriptions: 3,
+    max_subscriptions: 5,
+  },
+  {
+    code: "starter",
+    name: "Starter",
+    description: "Up to 10 subscriptions on your personal entity.",
+    price_monthly: 29,
+    price_quarterly: 79,
+    price_half_yearly: 139,
+    price_yearly: 239,
+    max_entities: 1,
+    max_subscriptions: 10,
   },
   {
     code: "pro",
-    name: "Pro",
+    name: "Personal",
     description:
-      "Unlimited subscriptions, business entities, GST export, invoice vault.",
-    price_monthly: 149,
-    price_yearly: 1490,
-    max_entities: null,
+      "Unlimited subscriptions on your personal entity, GST export, invoice vault.",
+    price_monthly: 49,
+    price_quarterly: 129,
+    price_half_yearly: 229,
+    price_yearly: 399,
+    max_entities: 1,
+    max_subscriptions: null,
+  },
+  {
+    code: "business_lite",
+    name: "Business Lite",
+    description:
+      "Unlimited subscriptions across your personal entity plus 2 business entities.",
+    price_monthly: 99,
+    price_quarterly: 259,
+    price_half_yearly: 459,
+    price_yearly: 799,
+    max_entities: 3,
     max_subscriptions: null,
   },
   {
     code: "team",
-    name: "Team",
-    description: "Everything in Pro, for your whole finance team.",
-    price_monthly: 499,
-    price_yearly: 4990,
+    name: "Business",
+    description:
+      "Unlimited subscriptions across your personal entity plus unlimited business entities.",
+    price_monthly: 149,
+    price_quarterly: 389,
+    price_half_yearly: 699,
+    price_yearly: 1199,
     max_entities: null,
     max_subscriptions: null,
   },
@@ -54,13 +84,15 @@ async function fetchPlans(): Promise<LandingPlan[]> {
     const { data } = await db
       .from("plans")
       .select(
-        "code, name, description, price_monthly, price_yearly, max_entities, max_subscriptions",
+        "code, name, description, price_monthly, price_quarterly, price_half_yearly, price_yearly, max_entities, max_subscriptions",
       )
       .order("sort_order");
     if (!data?.length) return FALLBACK_PLANS;
     return data.map((p) => ({
       ...p,
       price_monthly: Number(p.price_monthly),
+      price_quarterly: Number(p.price_quarterly),
+      price_half_yearly: Number(p.price_half_yearly),
       price_yearly: Number(p.price_yearly),
     }));
   } catch {

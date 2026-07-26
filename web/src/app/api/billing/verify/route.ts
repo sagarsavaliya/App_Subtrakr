@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { razorpayKeys, verifyPaymentSignature } from "@/lib/razorpay";
+import { isBillingCycle, addCyclePeriod, priceForCycle } from "@/lib/billingCycle";
 
 /** Called by the checkout success handler. Verifies Razorpay's signature,
  *  then activates the plan (service role — subscriber_billing is
@@ -20,8 +21,11 @@ export async function POST(request: Request) {
     razorpay_payment_id: string;
     razorpay_signature: string;
     planCode: string;
-    cycle: "monthly" | "yearly";
+    cycle: string;
   };
+  if (!isBillingCycle(body.cycle)) {
+    return NextResponse.json({ error: "Invalid cycle" }, { status: 400 });
+  }
 
   const keys = await razorpayKeys();
   if (!keys) {
@@ -40,7 +44,7 @@ export async function POST(request: Request) {
   const db = createAdminClient();
   const { data: plan } = await db
     .from("plans")
-    .select("id, price_monthly, price_yearly")
+    .select("id, price_monthly, price_quarterly, price_half_yearly, price_yearly")
     .eq("code", body.planCode)
     .single();
   if (!plan) {
@@ -48,9 +52,7 @@ export async function POST(request: Request) {
   }
 
   const now = new Date();
-  const periodEnd = new Date(now);
-  if (body.cycle === "yearly") periodEnd.setFullYear(periodEnd.getFullYear() + 1);
-  else periodEnd.setMonth(periodEnd.getMonth() + 1);
+  const periodEnd = addCyclePeriod(now, body.cycle);
 
   const { data: billingRow, error: billingError } = await db
     .from("subscriber_billing")
@@ -72,8 +74,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: billingError.message }, { status: 500 });
   }
 
-  const amount =
-    body.cycle === "yearly" ? plan.price_yearly : plan.price_monthly;
+  const amount = priceForCycle(plan, body.cycle);
   await db.from("billing_transactions").insert({
     user_id: user.id,
     subscriber_billing_id: billingRow.id,

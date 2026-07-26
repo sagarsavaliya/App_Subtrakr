@@ -13,6 +13,8 @@ type Plan = {
   name: string;
   description: string | null;
   price_monthly: number;
+  price_quarterly: number;
+  price_half_yearly: number;
   price_yearly: number;
   max_entities: number | null;
   max_subscriptions: number | null;
@@ -72,7 +74,10 @@ export function PlanCard({ plan, canDelete }: { plan: Plan; canDelete: boolean }
               <span className="text-sm font-normal text-ink-3">/mo</span>
             </p>
             {plan.price_yearly > 0 && (
-              <p className="text-xs text-ink-3">or {formatINR(plan.price_yearly)}/yr</p>
+              <p className="text-xs text-ink-3">
+                {formatINR(plan.price_quarterly)}/qtr · {formatINR(plan.price_half_yearly)}/half-yr ·{" "}
+                {formatINR(plan.price_yearly)}/yr
+              </p>
             )}
             <ul className="mt-4 space-y-1 text-xs text-ink-2">
               <li>
@@ -162,6 +167,28 @@ export function PlanCard({ plan, canDelete }: { plan: Plan; canDelete: boolean }
                   />
                 </div>
                 <div>
+                  <label className="mb-1 block text-xs text-ink-2">Quarterly (₹)</label>
+                  <input
+                    name="price_quarterly"
+                    type="number"
+                    min="0"
+                    step="1"
+                    defaultValue={Number(plan.price_quarterly)}
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-ink-2">Half-yearly (₹)</label>
+                  <input
+                    name="price_half_yearly"
+                    type="number"
+                    min="0"
+                    step="1"
+                    defaultValue={Number(plan.price_half_yearly)}
+                    className={inputClass}
+                  />
+                </div>
+                <div>
                   <label className="mb-1 block text-xs text-ink-2">Yearly (₹)</label>
                   <input
                     name="price_yearly"
@@ -173,6 +200,33 @@ export function PlanCard({ plan, canDelete }: { plan: Plan; canDelete: boolean }
                   />
                 </div>
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-xs text-ink-2">Max entities</label>
+                  <input
+                    name="max_entities"
+                    type="number"
+                    min="1"
+                    step="1"
+                    placeholder="Unlimited"
+                    defaultValue={plan.max_entities ?? ""}
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-ink-2">Max subscriptions</label>
+                  <input
+                    name="max_subscriptions"
+                    type="number"
+                    min="1"
+                    step="1"
+                    placeholder="Unlimited"
+                    defaultValue={plan.max_subscriptions ?? ""}
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+              <p className="text-[11px] text-ink-3">Leave a cap blank for unlimited.</p>
             </div>
             <div className="mt-5 flex gap-2">
               <motion.button

@@ -28,6 +28,25 @@ export async function addSubscription(formData: FormData): Promise<ActionResult>
     return { ok: false, message: "Choose a valid first charge date." };
   }
 
+  // Re-check the plan's subscription cap server-side — same pattern as
+  // addEntity's max_entities check below. Was never enforced anywhere
+  // before this (only ever shown as decorative copy on the pricing page).
+  const [{ data: billing }, { count }] = await Promise.all([
+    supabase.from("subscriber_billing").select("*, plans(max_subscriptions)").maybeSingle(),
+    supabase.from("subscriptions").select("id", { count: "exact", head: true }),
+  ]);
+  const maxSubscriptions = (
+    billing?.plans as unknown as { max_subscriptions: number | null } | null
+  )?.max_subscriptions;
+  const freeMax = 5; // no subscriber_billing row at all means the Free plan's cap
+  const subLimit = billing ? maxSubscriptions : freeMax;
+  if (subLimit !== null && subLimit !== undefined && (count ?? 0) >= subLimit) {
+    return {
+      ok: false,
+      message: `Your plan allows up to ${subLimit} subscriptions — upgrade to add more.`,
+    };
+  }
+
   const nextDue = computeNextDue(new Date(startDate), cycle);
 
   const { error } = await supabase.from("subscriptions").insert({
