@@ -4,6 +4,8 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { formatINR, formatDate } from "@/lib/format";
 import { useServerAction, type ActionResult } from "@/lib/useServerAction";
+import { MarkPaidDialog } from "@/components/MarkPaidDialog";
+import type { PaymentMethod } from "@/components/ProfilePaymentMethodsSection";
 import { TrashIcon } from "./icons";
 
 type Props = {
@@ -28,6 +30,13 @@ type Props = {
    *  /app/subscription/[id] is RLS-scoped to the owning user, so an admin
    *  viewing someone else's row can't follow it anyway. */
   detailHref?: string;
+  /** Only passed from the subscriber's own /app pages — its presence (even
+   *  as an empty array) is what switches "Mark paid" from an immediate
+   *  one-click action to the payment-method confirm dialog. The admin
+   *  subscriber-detail page (which reuses this same row) doesn't pass it,
+   *  since admin doesn't know or need the subscriber's own saved payment
+   *  methods — its one-click "Mark paid" stays exactly as it was. */
+  paymentMethods?: PaymentMethod[];
 };
 
 /** Client component so the list can use framer-motion (entrance stagger +
@@ -48,6 +57,7 @@ export function SubscriptionRow({
   deleteAction,
   hiddenFields,
   detailHref,
+  paymentMethods,
 }: Props) {
   const markPaid = useServerAction(markPaidAction, { successMessage: "Marked paid." });
   const del = useServerAction(deleteAction, { successMessage: `${name} deleted.` });
@@ -103,18 +113,39 @@ export function SubscriptionRow({
         <p className="font-mono font-semibold">{formatINR(amount)}</p>
         <p className="text-xs text-ink-3">/{billingCycle.replace("_", " ")}</p>
       </div>
-      {status === "active" && (
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => markPaid.run(buildFormData())}
-          disabled={markPaid.pending}
-          className="glass cursor-pointer rounded-full px-3 py-1.5 text-xs text-glow transition-colors duration-200 hover:border-glow/40 disabled:cursor-not-allowed disabled:opacity-50"
-          title="Mark paid — advances next due date"
-        >
-          {markPaid.pending ? "Working…" : "Mark paid"}
-        </motion.button>
-      )}
+      {status === "active" &&
+        (paymentMethods !== undefined ? (
+          <MarkPaidDialog
+            subscriptionId={id}
+            defaultAmount={amount}
+            markPaidAction={markPaidAction}
+            hiddenFields={hiddenFields}
+            paymentMethods={paymentMethods}
+            renderTrigger={(open, pending) => (
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={open}
+                disabled={pending}
+                className="glass cursor-pointer rounded-full px-3 py-1.5 text-xs text-glow transition-colors duration-200 hover:border-glow/40 disabled:cursor-not-allowed disabled:opacity-50"
+                title="Mark paid — advances next due date"
+              >
+                {pending ? "Working…" : "Mark paid"}
+              </motion.button>
+            )}
+          />
+        ) : (
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => markPaid.run(buildFormData())}
+            disabled={markPaid.pending}
+            className="glass cursor-pointer rounded-full px-3 py-1.5 text-xs text-glow transition-colors duration-200 hover:border-glow/40 disabled:cursor-not-allowed disabled:opacity-50"
+            title="Mark paid — advances next due date"
+          >
+            {markPaid.pending ? "Working…" : "Mark paid"}
+          </motion.button>
+        ))}
       <motion.button
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}

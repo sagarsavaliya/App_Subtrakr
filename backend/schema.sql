@@ -16,17 +16,37 @@ CREATE TABLE IF NOT EXISTS entities (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Payment Methods
+-- Payment Methods — how the subscriber actually pays, so payments can be
+-- traced back to a specific card/account/wallet (useful for splitting
+-- personal vs business spend for ITR/GST filing). bank_name doubles as
+-- "issuing bank" for cards and "the bank" for a bank_transfer; card_network
+-- and wallet_name/wallet_mobile only apply to their matching type.
 CREATE TABLE IF NOT EXISTS payment_methods (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
   label TEXT NOT NULL,
-  type TEXT CHECK (type IN ('card', 'upi', 'netbanking', 'wallet')) NOT NULL,
+  type TEXT CHECK (type IN ('credit_card', 'debit_card', 'upi', 'bank_transfer', 'wallet')) NOT NULL,
+  bank_name TEXT,
+  card_network TEXT,
   last_four TEXT,
   upi_id TEXT,
+  wallet_name TEXT,
+  wallet_mobile TEXT,
   is_default BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+-- Retrofit for databases where `payment_methods` already existed with the
+-- old, narrower shape ('card'/'netbanking' instead of split credit/debit
+-- card + bank_transfer, and none of the detail columns) — this table has
+-- never had a UI built against it before now, so there's no real data at
+-- risk. Must run before the CHECK is widened below.
+ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS bank_name TEXT;
+ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS card_network TEXT;
+ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS wallet_name TEXT;
+ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS wallet_mobile TEXT;
+ALTER TABLE payment_methods DROP CONSTRAINT IF EXISTS payment_methods_type_check;
+ALTER TABLE payment_methods ADD CONSTRAINT payment_methods_type_check
+  CHECK (type IN ('credit_card', 'debit_card', 'upi', 'bank_transfer', 'wallet'));
 
 -- Subscriptions
 CREATE TABLE IF NOT EXISTS subscriptions (
@@ -68,8 +88,19 @@ CREATE TABLE IF NOT EXISTS payment_history (
   amount_paid DECIMAL(10,2) NOT NULL,
   currency TEXT DEFAULT 'INR',
   source TEXT CHECK (source IN ('manual','sms_detected','auto')) DEFAULT 'manual',
+  payment_method_id UUID REFERENCES payment_methods ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+-- Retrofit for databases where `payment_history` already existed before
+-- this column was added — captures which payment method was ACTUALLY
+-- used for each specific payment (a subscription's own payment_method_id
+-- is just the default/preferred one for future reminders, which can
+-- change over time; this one is a historical record, same reasoning as
+-- billing_transactions.plan_code).
+ALTER TABLE payment_history ADD COLUMN IF NOT EXISTS payment_method_id UUID;
+ALTER TABLE payment_history DROP CONSTRAINT IF EXISTS payment_history_payment_method_id_fkey;
+ALTER TABLE payment_history ADD CONSTRAINT payment_history_payment_method_id_fkey
+  FOREIGN KEY (payment_method_id) REFERENCES payment_methods(id) ON DELETE SET NULL;
 
 -- Invoices
 CREATE TABLE IF NOT EXISTS invoices (

@@ -16,7 +16,7 @@ export default async function SubscriptionDetailPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data: sub }, { data: history }] = await Promise.all([
+  const [{ data: sub }, { data: history }, { data: paymentMethods }] = await Promise.all([
     supabase
       .from("subscriptions")
       .select(
@@ -26,9 +26,14 @@ export default async function SubscriptionDetailPage({
       .maybeSingle(),
     supabase
       .from("payment_history")
-      .select("id, paid_date, amount_paid, source")
+      .select("id, paid_date, amount_paid, source, payment_methods(label)")
       .eq("subscription_id", id)
       .order("paid_date", { ascending: false }),
+    supabase
+      .from("payment_methods")
+      .select("*")
+      .order("is_default", { ascending: false })
+      .order("created_at", { ascending: false }),
   ]);
 
   // RLS already scopes this to the caller's own rows — a null result here
@@ -84,9 +89,11 @@ export default async function SubscriptionDetailPage({
         <SubscriptionDetailActions
           id={sub.id}
           name={sub.name}
+          amount={sub.amount}
           active={sub.status === "active"}
           markPaidAction={markPaid}
           deleteAction={deleteSubscription}
+          paymentMethods={paymentMethods ?? []}
         />
       </div>
 
@@ -115,16 +122,22 @@ export default async function SubscriptionDetailPage({
         </div>
       ) : (
         <ul className="space-y-2">
-          {history.map((h) => (
-            <li
-              key={h.id}
-              className="glass flex items-center justify-between rounded-xl px-4 py-3 text-sm"
-            >
-              <span className="text-ink-2">{formatDate(h.paid_date)}</span>
-              <span className="text-xs text-ink-3">{sourceLabel[h.source] ?? h.source}</span>
-              <span className="font-mono font-medium">{formatINR(Number(h.amount_paid))}</span>
-            </li>
-          ))}
+          {history.map((h) => {
+            const methodLabel = (h.payment_methods as unknown as { label: string } | null)?.label;
+            return (
+              <li
+                key={h.id}
+                className="glass flex items-center justify-between gap-3 rounded-xl px-4 py-3 text-sm"
+              >
+                <span className="text-ink-2">{formatDate(h.paid_date)}</span>
+                <span className="min-w-0 flex-1 truncate text-center text-xs text-ink-3">
+                  {methodLabel ?? "—"}
+                </span>
+                <span className="text-xs text-ink-3">{sourceLabel[h.source] ?? h.source}</span>
+                <span className="font-mono font-medium">{formatINR(Number(h.amount_paid))}</span>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

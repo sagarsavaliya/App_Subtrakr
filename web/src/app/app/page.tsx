@@ -26,7 +26,7 @@ export default async function DashboardPage({
   const { entity: entityFilter } = await searchParams;
   const supabase = await createClient();
 
-  const [{ data: entities }, { data: subs }] = await Promise.all([
+  const [{ data: entities }, { data: subs }, { data: paymentMethods }] = await Promise.all([
     supabase.from("entities").select("id, name, type").order("type"),
     supabase
       .from("subscriptions")
@@ -34,6 +34,11 @@ export default async function DashboardPage({
         "id, entity_id, name, amount, billing_cycle, custom_cycle_days, next_due_date, status, is_auto_debit",
       )
       .order("next_due_date"),
+    supabase
+      .from("payment_methods")
+      .select("*")
+      .order("is_default", { ascending: false })
+      .order("created_at", { ascending: false }),
   ]);
 
   const allSubs: Sub[] = subs ?? [];
@@ -138,6 +143,7 @@ export default async function DashboardPage({
                 detailHref={`/app/subscription/${s.id}`}
                 markPaidAction={markPaid}
                 deleteAction={deleteSubscription}
+                paymentMethods={paymentMethods ?? []}
               />
             ))}
           </ul>

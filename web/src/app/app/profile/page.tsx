@@ -5,6 +5,7 @@ import { AddEntityForm } from "@/components/AddEntityForm";
 import { BuildingIcon } from "@/components/icons";
 import { ProfileEmailSection } from "@/components/ProfileEmailSection";
 import { ProfilePhoneSection } from "@/components/ProfilePhoneSection";
+import { ProfilePaymentMethodsSection } from "@/components/ProfilePaymentMethodsSection";
 
 export default async function ProfilePage() {
   const supabase = await createClient();
@@ -12,9 +13,14 @@ export default async function ProfilePage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: entities }, { data: billing }] = await Promise.all([
+  const [{ data: entities }, { data: billing }, { data: paymentMethods }] = await Promise.all([
     supabase.from("entities").select("id, name, type, gst_number").order("type"),
     supabase.from("subscriber_billing").select("*, plans(max_entities)").maybeSingle(),
+    supabase
+      .from("payment_methods")
+      .select("*")
+      .order("is_default", { ascending: false })
+      .order("created_at", { ascending: false }),
   ]);
 
   const maxEntities = (billing?.plans as unknown as { max_entities: number | null } | null)
@@ -57,6 +63,15 @@ export default async function ProfilePage() {
       <h2 className="mb-3 text-sm font-semibold text-ink-2">Mobile number</h2>
       <div className="mb-5">
         <ProfilePhoneSection initialPhone={user?.phone ?? null} />
+      </div>
+
+      <h2 className="mb-3 text-sm font-semibold text-ink-2">Payment methods</h2>
+      <p className="mb-3 text-xs text-ink-3">
+        Used when you mark a subscription paid — helps trace spend back to a
+        specific card, account, or wallet for GST/ITR filing.
+      </p>
+      <div className="mb-5">
+        <ProfilePaymentMethodsSection methods={paymentMethods ?? []} />
       </div>
 
       <h2 className="mb-3 text-sm font-semibold text-ink-2">Entities</h2>

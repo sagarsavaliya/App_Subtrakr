@@ -15,12 +15,22 @@ export function ChipSelect({
   name,
   options,
   defaultValue,
+  onChange,
 }: {
   name: string;
   options: Option[];
   defaultValue?: string;
+  /** Only needed when a sibling field must react to the choice (e.g.
+   *  showing different fields per payment-method type) — the hidden input
+   *  still carries the value into the surrounding form either way. */
+  onChange?: (value: string) => void;
 }) {
   const [value, setValue] = useState(defaultValue ?? options[0]?.value ?? "");
+
+  function select(v: string) {
+    setValue(v);
+    onChange?.(v);
+  }
 
   return (
     <div className="flex flex-wrap gap-2">
@@ -33,7 +43,7 @@ export function ChipSelect({
             type="button"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => setValue(o.value)}
+            onClick={() => select(o.value)}
             className={`cursor-pointer rounded-full px-4 py-2 text-sm transition-colors duration-150 ${
               active
                 ? "brand-gradient font-semibold text-[#08201a]"

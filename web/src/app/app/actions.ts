@@ -199,13 +199,24 @@ export async function markPaid(formData: FormData): Promise<ActionResult> {
   const base = due < now ? now : due;
   const nextDue = computeNextDue(base, sub.billing_cycle, sub.custom_cycle_days);
 
+  // amount/paid_date/payment_method_id are optional overrides from the
+  // Mark Paid dialog — the subscription's own scheduled amount and today
+  // are still the defaults for callers that don't send them (none left
+  // currently, but keeps this action safe to call bare).
+  const amountRaw = formData.get("amount");
+  const amount = amountRaw && Number.isFinite(Number(amountRaw)) ? Number(amountRaw) : sub.amount;
+  const paidDateRaw = String(formData.get("paid_date") ?? "");
+  const paidDate = paidDateRaw || now.toISOString().slice(0, 10);
+  const paymentMethodId = String(formData.get("payment_method_id") ?? "") || null;
+
   const { error: insertError } = await supabase.from("payment_history").insert({
     user_id: user.id,
     subscription_id: id,
-    paid_date: now.toISOString().slice(0, 10),
-    amount_paid: sub.amount,
+    paid_date: paidDate,
+    amount_paid: amount,
     currency: sub.currency,
     source: "manual",
+    payment_method_id: paymentMethodId,
   });
   if (insertError) {
     console.error("markPaid insert failed:", insertError.message);
