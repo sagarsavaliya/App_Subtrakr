@@ -4,7 +4,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatINR } from "@/lib/format";
 import { useToast } from "@/components/Toaster";
-import { BILLING_CYCLES, cycleLabel, priceForCycle, type BillingCycle } from "@/lib/billingCycle";
+import {
+  BILLING_CYCLES,
+  cycleLabel,
+  cycleShortLabel,
+  priceForCycle,
+  type BillingCycle,
+} from "@/lib/billingCycle";
 
 declare global {
   interface Window {
@@ -99,14 +105,15 @@ export function UpgradeButton({
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap gap-2 text-xs">
+      <div className="mb-3 grid grid-cols-4 gap-1.5 text-xs">
         {BILLING_CYCLES.map((c) => (
           <button
             key={c}
             onClick={() => setCycle(c)}
-            className={`rounded-full px-3 py-1 ${cycle === c ? "brand-gradient font-semibold text-[#08201a]" : "glass text-ink-2"}`}
+            title={cycleLabel(c)}
+            className={`rounded-full px-2 py-1 text-center ${cycle === c ? "brand-gradient font-semibold text-[#08201a]" : "glass text-ink-2"}`}
           >
-            {cycleLabel(c)}
+            {cycleShortLabel(c)}
           </button>
         ))}
       </div>

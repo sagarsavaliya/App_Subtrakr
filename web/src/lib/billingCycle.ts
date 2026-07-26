@@ -26,6 +26,13 @@ export function cycleLabel(cycle: BillingCycle): string {
   ];
 }
 
+/** Compact form for tight spaces (e.g. a 4-way toggle inside a narrow
+ *  pricing card) — cycleLabel's full words wrap onto their own line each
+ *  once there are 4 of them instead of 2. */
+export function cycleShortLabel(cycle: BillingCycle): string {
+  return { monthly: "Mo", quarterly: "Qtr", half_yearly: "6-Mo", yearly: "Yr" }[cycle];
+}
+
 export function addCyclePeriod(from: Date, cycle: BillingCycle): Date {
   const d = new Date(from);
   d.setMonth(d.getMonth() + CYCLE_MONTHS[cycle]);
