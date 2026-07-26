@@ -71,28 +71,32 @@ export function BillingPlanGrid({
 
   return (
     <div>
-      <div className="mb-4 flex justify-center">
-        <div className="glass inline-flex gap-1 rounded-full p-1">
-          {(["personal", "business"] as const).map((c) => (
-            <button
-              key={c}
-              onClick={() => setCategory(c)}
-              className={`rounded-full px-5 py-1.5 text-sm capitalize transition-colors ${
-                category === c ? "brand-gradient font-semibold text-[#08201a]" : "text-ink-2 hover:text-ink"
-              }`}
-            >
-              {c}
-            </button>
-          ))}
+      {/* Primary filter (which plans apply to you) on the left, secondary
+          refinement (which cycle to pay) on the right — the two controls
+          aren't peers, so a single centered stack of both was confusing
+          about which one to reach for first. */}
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="glass inline-flex gap-1 rounded-full p-1">
+            {(["personal", "business"] as const).map((c) => (
+              <button
+                key={c}
+                onClick={() => setCategory(c)}
+                className={`rounded-full px-5 py-1.5 text-sm capitalize transition-colors ${
+                  category === c ? "brand-gradient font-semibold text-[#08201a]" : "text-ink-2 hover:text-ink"
+                }`}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-ink-3">
+            {category === "personal"
+              ? "Just your own subscriptions, on one personal entity."
+              : "Track subscriptions across your business entities too."}
+          </p>
         </div>
-      </div>
-      <p className="mb-6 text-center text-xs text-ink-3">
-        {category === "personal"
-          ? "Just your own subscriptions, on one personal entity."
-          : "Track subscriptions across your business entities too."}
-      </p>
 
-      <div className="mb-8 flex justify-center">
         <div className="glass inline-flex gap-1 rounded-full p-1">
           {BILLING_CYCLES.map((c) => (
             <button
