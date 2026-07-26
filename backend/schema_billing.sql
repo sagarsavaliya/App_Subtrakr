@@ -14,7 +14,7 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 -- be client-readable.
 CREATE TABLE IF NOT EXISTS admin_users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users NOT NULL UNIQUE,
+  user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL UNIQUE,
   role TEXT CHECK (role IN ('super_admin', 'support', 'finance')) DEFAULT 'super_admin',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -49,7 +49,7 @@ ALTER TABLE phone_otp_challenges ENABLE ROW LEVEL SECURITY;
 -- blocked forever by a row from the previous renewal.
 CREATE TABLE IF NOT EXISTS renewal_reminders_sent (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  subscription_id UUID REFERENCES subscriptions NOT NULL,
+  subscription_id UUID REFERENCES subscriptions ON DELETE CASCADE NOT NULL,
   next_due_date DATE NOT NULL,
   offset_days INTEGER NOT NULL,
   sent_at TIMESTAMPTZ DEFAULT NOW(),
@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS app_settings (
   encrypted_value BYTEA,         -- pgp_sym_encrypt'd, for secrets
   is_secret BOOLEAN DEFAULT FALSE,
   description TEXT,
-  updated_by UUID REFERENCES auth.users,
+  updated_by UUID REFERENCES auth.users ON DELETE SET NULL,
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -105,7 +105,7 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 -- ── A user's subscription to SubTrakr itself ────────────────────────────
 CREATE TABLE IF NOT EXISTS subscriber_billing (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users NOT NULL UNIQUE,
+  user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL UNIQUE,
   plan_id UUID REFERENCES plans NOT NULL,
   status TEXT CHECK (status IN ('active','trialing','past_due','cancelled','expired')) DEFAULT 'trialing',
   billing_cycle TEXT CHECK (billing_cycle IN ('monthly','yearly')) DEFAULT 'monthly',
@@ -131,8 +131,8 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 --    tracked-subscription payment_history table) ───────────────────────
 CREATE TABLE IF NOT EXISTS billing_transactions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users NOT NULL,
-  subscriber_billing_id UUID REFERENCES subscriber_billing,
+  user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
+  subscriber_billing_id UUID REFERENCES subscriber_billing ON DELETE CASCADE,
   razorpay_payment_id TEXT,
   razorpay_order_id TEXT,
   amount DECIMAL(10,2) NOT NULL,
@@ -175,3 +175,20 @@ ON CONFLICT (user_id) DO NOTHING;
 INSERT INTO admin_users (user_id, role)
 SELECT id, 'super_admin' FROM auth.users WHERE email = 'savaliya.sagar@hotmail.com'
 ON CONFLICT (user_id) DO NOTHING;
+
+-- Retrofit ON DELETE CASCADE onto these FKs for databases where the tables
+-- already existed before this file added it above — see the matching block
+-- at the end of schema.sql for why (admin "delete account" was hitting a
+-- bare FK violation instead of cascading). Safe to re-run every deploy.
+ALTER TABLE admin_users DROP CONSTRAINT IF EXISTS admin_users_user_id_fkey,
+  ADD CONSTRAINT admin_users_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE renewal_reminders_sent DROP CONSTRAINT IF EXISTS renewal_reminders_sent_subscription_id_fkey,
+  ADD CONSTRAINT renewal_reminders_sent_subscription_id_fkey FOREIGN KEY (subscription_id) REFERENCES subscriptions(id) ON DELETE CASCADE;
+ALTER TABLE app_settings DROP CONSTRAINT IF EXISTS app_settings_updated_by_fkey,
+  ADD CONSTRAINT app_settings_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES auth.users(id) ON DELETE SET NULL;
+ALTER TABLE subscriber_billing DROP CONSTRAINT IF EXISTS subscriber_billing_user_id_fkey,
+  ADD CONSTRAINT subscriber_billing_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE billing_transactions DROP CONSTRAINT IF EXISTS billing_transactions_user_id_fkey,
+  ADD CONSTRAINT billing_transactions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE billing_transactions DROP CONSTRAINT IF EXISTS billing_transactions_subscriber_billing_id_fkey,
+  ADD CONSTRAINT billing_transactions_subscriber_billing_id_fkey FOREIGN KEY (subscriber_billing_id) REFERENCES subscriber_billing(id) ON DELETE CASCADE;

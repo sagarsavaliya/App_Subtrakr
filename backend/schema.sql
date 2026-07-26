@@ -8,7 +8,7 @@
 -- Entities (personal or company)
 CREATE TABLE IF NOT EXISTS entities (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users NOT NULL,
+  user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
   name TEXT NOT NULL,
   type TEXT CHECK (type IN ('personal', 'company')) NOT NULL,
   gst_number TEXT,
@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS entities (
 -- Payment Methods
 CREATE TABLE IF NOT EXISTS payment_methods (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users NOT NULL,
+  user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
   label TEXT NOT NULL,
   type TEXT CHECK (type IN ('card', 'upi', 'netbanking', 'wallet')) NOT NULL,
   last_four TEXT,
@@ -31,8 +31,8 @@ CREATE TABLE IF NOT EXISTS payment_methods (
 -- Subscriptions
 CREATE TABLE IF NOT EXISTS subscriptions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users NOT NULL,
-  entity_id UUID REFERENCES entities NOT NULL,
+  user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
+  entity_id UUID REFERENCES entities ON DELETE CASCADE NOT NULL,
   name TEXT NOT NULL,
   logo_url TEXT,
   category TEXT NOT NULL,
@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   trial_end_date DATE,
   status TEXT CHECK (status IN ('active','paused','cancelled','trial')) DEFAULT 'active',
   is_auto_debit BOOLEAN DEFAULT FALSE,
-  payment_method_id UUID REFERENCES payment_methods,
+  payment_method_id UUID REFERENCES payment_methods ON DELETE SET NULL,
   is_gst_applicable BOOLEAN DEFAULT FALSE,
   vendor_gstin TEXT,
   gst_rate DECIMAL(5,2),
@@ -62,8 +62,8 @@ CREATE TABLE IF NOT EXISTS subscriptions (
 -- Payment History
 CREATE TABLE IF NOT EXISTS payment_history (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  subscription_id UUID REFERENCES subscriptions NOT NULL,
-  user_id UUID REFERENCES auth.users NOT NULL,
+  subscription_id UUID REFERENCES subscriptions ON DELETE CASCADE NOT NULL,
+  user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
   paid_date DATE NOT NULL,
   amount_paid DECIMAL(10,2) NOT NULL,
   currency TEXT DEFAULT 'INR',
@@ -74,9 +74,9 @@ CREATE TABLE IF NOT EXISTS payment_history (
 -- Invoices
 CREATE TABLE IF NOT EXISTS invoices (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  subscription_id UUID REFERENCES subscriptions NOT NULL,
-  user_id UUID REFERENCES auth.users NOT NULL,
-  payment_history_id UUID REFERENCES payment_history,
+  subscription_id UUID REFERENCES subscriptions ON DELETE CASCADE NOT NULL,
+  user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
+  payment_history_id UUID REFERENCES payment_history ON DELETE SET NULL,
   invoice_date DATE NOT NULL,
   amount DECIMAL(10,2) NOT NULL,
   invoice_number TEXT,
@@ -115,3 +115,32 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 -- restricts to their own rows on top of this).
 GRANT USAGE ON SCHEMA public TO authenticated;
 GRANT ALL ON entities, payment_methods, subscriptions, payment_history, invoices TO authenticated;
+
+-- Retrofit ON DELETE CASCADE onto these FKs for databases that already had
+-- the tables created before this file added it above (CREATE TABLE IF NOT
+-- EXISTS is a no-op on an existing table, so the ADMIN "delete account"
+-- action was hitting a bare FK violation — deleting an auth.users row with
+-- any entities/subscriptions/etc. still pointing at it errored out instead
+-- of cascading, exactly the "unable to delete user" symptom this fixes.
+-- Constraint names below are Postgres's own default naming for an inline
+-- REFERENCES clause (<table>_<column>_fkey) — safe to re-run every deploy.
+ALTER TABLE entities DROP CONSTRAINT IF EXISTS entities_user_id_fkey,
+  ADD CONSTRAINT entities_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE payment_methods DROP CONSTRAINT IF EXISTS payment_methods_user_id_fkey,
+  ADD CONSTRAINT payment_methods_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE subscriptions DROP CONSTRAINT IF EXISTS subscriptions_user_id_fkey,
+  ADD CONSTRAINT subscriptions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE subscriptions DROP CONSTRAINT IF EXISTS subscriptions_entity_id_fkey,
+  ADD CONSTRAINT subscriptions_entity_id_fkey FOREIGN KEY (entity_id) REFERENCES entities(id) ON DELETE CASCADE;
+ALTER TABLE subscriptions DROP CONSTRAINT IF EXISTS subscriptions_payment_method_id_fkey,
+  ADD CONSTRAINT subscriptions_payment_method_id_fkey FOREIGN KEY (payment_method_id) REFERENCES payment_methods(id) ON DELETE SET NULL;
+ALTER TABLE payment_history DROP CONSTRAINT IF EXISTS payment_history_subscription_id_fkey,
+  ADD CONSTRAINT payment_history_subscription_id_fkey FOREIGN KEY (subscription_id) REFERENCES subscriptions(id) ON DELETE CASCADE;
+ALTER TABLE payment_history DROP CONSTRAINT IF EXISTS payment_history_user_id_fkey,
+  ADD CONSTRAINT payment_history_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE invoices DROP CONSTRAINT IF EXISTS invoices_subscription_id_fkey,
+  ADD CONSTRAINT invoices_subscription_id_fkey FOREIGN KEY (subscription_id) REFERENCES subscriptions(id) ON DELETE CASCADE;
+ALTER TABLE invoices DROP CONSTRAINT IF EXISTS invoices_user_id_fkey,
+  ADD CONSTRAINT invoices_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE invoices DROP CONSTRAINT IF EXISTS invoices_payment_history_id_fkey,
+  ADD CONSTRAINT invoices_payment_history_id_fkey FOREIGN KEY (payment_history_id) REFERENCES payment_history(id) ON DELETE SET NULL;
