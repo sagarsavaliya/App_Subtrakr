@@ -146,9 +146,18 @@ CREATE TABLE IF NOT EXISTS billing_transactions (
   currency TEXT DEFAULT 'INR',
   status TEXT CHECK (status IN ('created','authorized','captured','failed','refunded')) NOT NULL,
   method TEXT,                   -- upi, card, netbanking, etc. (from Razorpay)
+  plan_code TEXT,                -- what was actually bought at the time — the
+                                  -- subscriber's plan can change later, so this
+                                  -- can't be derived by joining subscriber_billing
+  billing_cycle TEXT,             -- ditto, for the cycle (monthly/quarterly/...)
   raw_payload JSONB,              -- full webhook payload, for audit/debugging
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+-- Retrofit for databases where `billing_transactions` already existed
+-- before this file added these two columns — needed for the subscriber-
+-- facing billing history table to show what was actually purchased.
+ALTER TABLE billing_transactions ADD COLUMN IF NOT EXISTS plan_code TEXT;
+ALTER TABLE billing_transactions ADD COLUMN IF NOT EXISTS billing_cycle TEXT;
 ALTER TABLE billing_transactions ENABLE ROW LEVEL SECURITY;
 DO $$ BEGIN
   CREATE POLICY "Users view own transactions" ON billing_transactions FOR SELECT USING (auth.uid() = user_id);
