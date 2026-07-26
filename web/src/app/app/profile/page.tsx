@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/format";
 import { AddEntityForm } from "@/components/AddEntityForm";
@@ -60,14 +59,12 @@ export default async function ProfilePage() {
         </div>
       </div>
 
-      <h2 className="mb-3 text-sm font-semibold text-ink-2">Payment methods</h2>
-      <p className="mb-3 text-xs text-ink-3">
-        Used when you mark a subscription paid — helps trace spend back to a
-        specific card, account, or wallet for GST/ITR filing.
-      </p>
-      <ProfilePaymentMethodsSection methods={paymentMethods ?? []} />
+      <ProfilePaymentMethodsSection methods={paymentMethods ?? []} entities={entities ?? []} />
 
-      <h2 className="mb-3 mt-8 text-sm font-semibold text-ink-2">Entities</h2>
+      <div className="mb-3 mt-8 flex items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold text-ink-2">Entities</h2>
+        <AddEntityForm atLimit={atLimit} limit={limit ?? null} />
+      </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {entities?.map((e) => (
           <div key={e.id} className="glass flex items-center gap-3 rounded-2xl p-4">
@@ -92,17 +89,6 @@ export default async function ProfilePage() {
             </div>
           </div>
         ))}
-
-        {atLimit ? (
-          <div className="glass flex items-center justify-center rounded-2xl p-4 text-center text-sm text-ink-2">
-            Your plan allows {limit} {limit === 1 ? "entity" : "entities"}.{" "}
-            <Link href="/app/billing" className="text-glow hover:underline">
-              Upgrade
-            </Link>
-          </div>
-        ) : (
-          <AddEntityForm />
-        )}
       </div>
 
       <p className="mt-8 text-xs text-ink-3">

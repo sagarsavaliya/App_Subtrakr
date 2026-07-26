@@ -8,7 +8,10 @@ type ActionResult = { ok: boolean; message?: string };
 
 /** payment_methods has a real RLS policy (auth.uid() = user_id, FOR ALL) —
  *  unlike subscriber_billing, these actions use the plain cookie-bound
- *  client throughout, no admin client needed. */
+ *  client throughout, no admin client needed. Each method belongs to one
+ *  entity (personal or a specific business) — "default" is scoped per
+ *  entity too, since "my default card" means something different for
+ *  Personal vs. a specific company. */
 
 function str(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
@@ -40,6 +43,7 @@ function autoLabel(type: string, formData: FormData): string {
 }
 
 type ParsedFields = {
+  entityId: string;
   type: string;
   bankName: string | null;
   cardNetwork: string | null;
@@ -52,6 +56,9 @@ type ParsedFields = {
 
 /** Shared by add and update — same fields, same validation either way. */
 function parseAndValidate(formData: FormData): ParsedFields | { error: string } {
+  const entityId = str(formData, "entity_id");
+  if (!entityId) return { error: "Choose an entity." };
+
   const type = str(formData, "type");
   if (!["credit_card", "debit_card", "upi", "bank_transfer", "wallet"].includes(type)) {
     return { error: "Choose a payment method type." };
@@ -81,7 +88,7 @@ function parseAndValidate(formData: FormData): ParsedFields | { error: string } 
   }
 
   const label = str(formData, "label") || autoLabel(type, formData);
-  return { type, bankName, cardNetwork, lastFour, upiId, walletName, walletMobile, label };
+  return { entityId, type, bankName, cardNetwork, lastFour, upiId, walletName, walletMobile, label };
 }
 
 export async function addPaymentMethod(formData: FormData): Promise<ActionResult> {
@@ -96,11 +103,16 @@ export async function addPaymentMethod(formData: FormData): Promise<ActionResult
 
   const makeDefault = formData.get("is_default") === "on";
   if (makeDefault) {
-    await supabase.from("payment_methods").update({ is_default: false }).eq("user_id", user.id);
+    await supabase
+      .from("payment_methods")
+      .update({ is_default: false })
+      .eq("user_id", user.id)
+      .eq("entity_id", parsed.entityId);
   }
 
   const { error } = await supabase.from("payment_methods").insert({
     user_id: user.id,
+    entity_id: parsed.entityId,
     type: parsed.type,
     label: parsed.label,
     bank_name: parsed.bankName,
@@ -139,12 +151,14 @@ export async function updatePaymentMethod(formData: FormData): Promise<ActionRes
       .from("payment_methods")
       .update({ is_default: false })
       .eq("user_id", user.id)
+      .eq("entity_id", parsed.entityId)
       .neq("id", id);
   }
 
   const { error } = await supabase
     .from("payment_methods")
     .update({
+      entity_id: parsed.entityId,
       type: parsed.type,
       label: parsed.label,
       bank_name: parsed.bankName,
@@ -175,23 +189,4 @@ export async function deletePaymentMethod(formData: FormData): Promise<ActionRes
   }
   revalidatePath("/app/profile");
   return { ok: true, message: "Payment method removed." };
-}
-
-export async function setDefaultPaymentMethod(formData: FormData): Promise<ActionResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const id = String(formData.get("id"));
-  await supabase.from("payment_methods").update({ is_default: false }).eq("user_id", user.id);
-  const { error } = await supabase
-    .from("payment_methods")
-    .update({ is_default: true })
-    .eq("id", id);
-  if (error) return { ok: false, message: error.message };
-
-  revalidatePath("/app/profile");
-  return { ok: true, message: "Default payment method updated." };
 }

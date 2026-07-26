@@ -51,9 +51,15 @@ const inputClass =
  *  Rendered inside a Modal, so no own container/cancel button here. */
 export function PaymentMethodForm({
   existing,
+  entityId,
   onDone,
 }: {
   existing?: PaymentMethod;
+  /** Which entity this method belongs to — fixed by whichever entity was
+   *  already selected in the section's own dropdown before "+" was
+   *  clicked (or, when editing, the method's existing entity), not
+   *  user-editable inside this form itself. */
+  entityId: string;
   onDone: () => void;
 }) {
   const [type, setType] = useState(existing?.type ?? "credit_card");
@@ -65,6 +71,7 @@ export function PaymentMethodForm({
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     if (existing) fd.set("id", existing.id);
+    fd.set("entity_id", existing?.entity_id ?? entityId);
     run(fd);
   }
 

@@ -6,10 +6,12 @@ import { deletePaymentMethod } from "@/app/app/paymentMethodActions";
 import { useServerAction } from "@/lib/useServerAction";
 import { PaymentMethodForm } from "@/components/PaymentMethodForm";
 import { Modal } from "@/components/Modal";
-import { PencilIcon, TrashIcon } from "@/components/icons";
+import { CustomSelect } from "@/components/CustomSelect";
+import { PencilIcon, TrashIcon, PlusIcon } from "@/components/icons";
 
 export type PaymentMethod = {
   id: string;
+  entity_id: string;
   type: string;
   label: string;
   bank_name: string | null;
@@ -20,6 +22,8 @@ export type PaymentMethod = {
   wallet_mobile: string | null;
   is_default: boolean;
 };
+
+type Entity = { id: string; name: string; type: string };
 
 const TYPE_LABEL: Record<string, string> = {
   credit_card: "Credit card",
@@ -99,15 +103,24 @@ function Card({ method, onEdit }: { method: PaymentMethod; onEdit: () => void })
   );
 }
 
-/** How the subscriber actually pays for things — reusable across every
- *  "Mark paid" so payments trace back to a specific card/account/wallet,
- *  useful for splitting personal vs business spend at ITR/GST time.
- *  Add/edit both happen in the same modal (PaymentMethodForm), matching
- *  the rest of the redesigned profile page. */
-export function ProfilePaymentMethodsSection({ methods }: { methods: PaymentMethod[] }) {
+/** How the subscriber actually pays for things, scoped per entity — a
+ *  "default card" means something different for Personal vs. a specific
+ *  business, so methods are filtered by whichever entity is selected in
+ *  the dropdown here, and a newly-added one belongs to that same entity.
+ *  Add/edit both happen in the same modal (PaymentMethodForm). */
+export function ProfilePaymentMethodsSection({
+  methods,
+  entities,
+}: {
+  methods: PaymentMethod[];
+  entities: Entity[];
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<PaymentMethod | null>(null);
+  const [entityId, setEntityId] = useState(entities[0]?.id ?? "");
+
+  const visible = methods.filter((m) => m.entity_id === entityId);
 
   function openAdd() {
     setEditing(null);
@@ -126,27 +139,52 @@ export function ProfilePaymentMethodsSection({ methods }: { methods: PaymentMeth
 
   return (
     <div>
-      {methods.length > 0 && (
-        <ul className="mb-3 grid gap-3 sm:grid-cols-2">
-          {methods.map((m) => (
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold text-ink-2">Payment methods</h2>
+        <div className="flex items-center gap-2">
+          <div className="w-40">
+            <CustomSelect
+              name="entity_filter"
+              defaultValue={entityId}
+              options={entities.map((e) => ({ value: e.id, label: e.name }))}
+              onChange={setEntityId}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={openAdd}
+            disabled={!entityId}
+            aria-label="Add payment method"
+            className="glass flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink-2 transition-colors hover:border-glow/30 hover:text-glow disabled:opacity-50"
+          >
+            <PlusIcon className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+      <p className="mb-3 text-xs text-ink-3">
+        Used when you mark a subscription paid — helps trace spend back to a
+        specific card, account, or wallet for GST/ITR filing. Pick an entity
+        above to see or add methods for that business.
+      </p>
+
+      {visible.length > 0 ? (
+        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {visible.map((m) => (
             <Card key={m.id} method={m} onEdit={() => openEdit(m)} />
           ))}
         </ul>
+      ) : (
+        <div className="glass rounded-2xl p-4 text-center text-sm text-ink-2">
+          No payment methods for this entity yet.
+        </div>
       )}
-
-      <button
-        onClick={openAdd}
-        className="glass w-full rounded-2xl p-4 text-center text-sm text-ink-2 transition-colors hover:border-glow/30 hover:text-ink"
-      >
-        {methods.length === 0 ? "Add your first payment method" : "+ Add another payment method"}
-      </button>
 
       <Modal
         open={open}
         onClose={() => setOpen(false)}
         title={editing ? "Edit payment method" : "Add payment method"}
       >
-        <PaymentMethodForm existing={editing ?? undefined} onDone={onFormDone} />
+        <PaymentMethodForm existing={editing ?? undefined} entityId={entityId} onDone={onFormDone} />
       </Modal>
     </div>
   );
