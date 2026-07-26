@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { razorpayKeys, verifyPaymentSignature } from "@/lib/razorpay";
+import { razorpayKeys, verifyPaymentSignature, fetchPaymentMethod } from "@/lib/razorpay";
 import { isBillingCycle, addCyclePeriod, priceForCycle } from "@/lib/billingCycle";
 
 /** Called by the checkout success handler. Verifies Razorpay's signature,
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
   const db = createAdminClient();
   const { data: plan } = await db
     .from("plans")
-    .select("id, price_monthly, price_quarterly, price_half_yearly, price_yearly")
+    .select("id, code, price_monthly, price_quarterly, price_half_yearly, price_yearly")
     .eq("code", body.planCode)
     .single();
   if (!plan) {
@@ -75,6 +75,7 @@ export async function POST(request: Request) {
   }
 
   const amount = priceForCycle(plan, body.cycle);
+  const method = await fetchPaymentMethod(body.razorpay_payment_id);
   await db.from("billing_transactions").insert({
     user_id: user.id,
     subscriber_billing_id: billingRow.id,
@@ -82,6 +83,9 @@ export async function POST(request: Request) {
     razorpay_order_id: body.razorpay_order_id,
     amount,
     status: "captured",
+    method,
+    plan_code: plan.code,
+    billing_cycle: body.cycle,
   });
 
   return NextResponse.json({ ok: true });

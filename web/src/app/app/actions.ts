@@ -3,8 +3,58 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 type ActionResult = { ok: boolean; message?: string };
+
+/** Self-service downgrade — takes effect immediately (no proration/
+ *  refund, no scheduling), consistent with the rest of this app's billing
+ *  model: there's no auto-recurring charge at all, renewal is always the
+ *  subscriber manually clicking Upgrade again, so there's nothing to
+ *  "schedule" a downgrade against either. subscriber_billing has no
+ *  client-write RLS policy (writes are meant to be server-verified only),
+ *  hence the admin client here — identity is still checked via the
+ *  cookie-bound session first, so a user can only ever change their own
+ *  row. */
+export async function downgradePlan(formData: FormData): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const planCode = String(formData.get("plan_code") ?? "");
+  const db = createAdminClient();
+
+  const [{ data: targetPlan }, { data: billing }] = await Promise.all([
+    db.from("plans").select("id, sort_order").eq("code", planCode).eq("is_active", true).maybeSingle(),
+    db.from("subscriber_billing").select("id, plans(sort_order)").eq("user_id", user.id).maybeSingle(),
+  ]);
+  if (!targetPlan) return { ok: false, message: "Unknown plan." };
+
+  const currentSortOrder =
+    (billing?.plans as unknown as { sort_order: number } | null)?.sort_order ?? 0;
+  if (targetPlan.sort_order >= currentSortOrder) {
+    return { ok: false, message: "That isn't a downgrade from your current plan." };
+  }
+
+  if (targetPlan.sort_order === 0) {
+    // Downgrading to Free — a missing subscriber_billing row IS the Free
+    // state everywhere else in the app (addEntity/addSubscription/
+    // profile/billing all fall back to Free's caps when there's no row),
+    // so clear it rather than pointing it at a ₹0 plan row.
+    if (billing) await db.from("subscriber_billing").delete().eq("user_id", user.id);
+  } else {
+    const { error } = await db
+      .from("subscriber_billing")
+      .update({ plan_id: targetPlan.id, updated_at: new Date().toISOString() })
+      .eq("user_id", user.id);
+    if (error) return { ok: false, message: error.message };
+  }
+
+  revalidatePath("/app/billing");
+  return { ok: true, message: "Plan changed." };
+}
 
 export async function addSubscription(formData: FormData): Promise<ActionResult> {
   const supabase = await createClient();

@@ -90,6 +90,8 @@ export async function POST(request: Request) {
     amount: payment.amount / 100,
     status: "captured",
     method: payment.method,
+    plan_code: planCode,
+    billing_cycle: cycle,
     raw_payload: event,
   });
 

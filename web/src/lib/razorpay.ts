@@ -46,6 +46,30 @@ export async function createOrder(params: {
   return { orderId: order.id, keyId: keys.keyId };
 }
 
+/** Fetches the payment's method (upi/card/netbanking/etc) for display in
+ *  the subscriber's billing history — the checkout success handler only
+ *  gives us order/payment/signature ids, not the method itself, and this
+ *  path (not the webhook) is what actually persists the transaction row
+ *  in practice, since the webhook's insert always loses the dedup race
+ *  against this one having already run first. */
+export async function fetchPaymentMethod(paymentId: string): Promise<string | null> {
+  const keys = await razorpayKeys();
+  if (!keys) return null;
+  try {
+    const res = await fetch(`https://api.razorpay.com/v1/payments/${paymentId}`, {
+      headers: {
+        Authorization:
+          "Basic " + Buffer.from(`${keys.keyId}:${keys.keySecret}`).toString("base64"),
+      },
+    });
+    if (!res.ok) return null;
+    const payment = (await res.json()) as { method?: string };
+    return payment.method ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** Razorpay checkout success handler signature check:
  *  HMAC-SHA256(order_id + "|" + payment_id, key_secret). */
 export function verifyPaymentSignature(params: {
