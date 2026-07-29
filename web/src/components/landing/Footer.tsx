@@ -18,6 +18,9 @@ export function Footer() {
           <Link href="/login" className="transition hover:text-ink-2">
             Sign in
           </Link>
+          <Link href="/privacy" className="transition hover:text-ink-2">
+            Privacy
+          </Link>
         </nav>
       </div>
     </footer>
