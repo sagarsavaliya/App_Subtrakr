@@ -20,6 +20,8 @@ export function DashboardEntityFilter({ entities }: { entities: Entity[] }) {
   const items = [{ id: null as string | null, key: "all", name: "All" }, ...entities.map((e) => ({ id: e.id, key: e.id, name: e.name }))];
   const { containerRef, register, rect } = useSlidingRect<HTMLDivElement>(activeKey);
 
+  if (!entities.length) return null;
+
   return (
     <div ref={containerRef} className="relative flex flex-wrap items-center gap-2">
       {rect && (

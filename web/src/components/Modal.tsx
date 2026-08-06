@@ -22,11 +22,13 @@ export function Modal({
   open,
   onClose,
   title,
+  maxWidth = "max-w-lg sm:max-w-xl lg:max-w-2xl",
   children,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
+  maxWidth?: string;
   children: React.ReactNode;
 }) {
   const [mounted, setMounted] = useState(false);
@@ -46,7 +48,7 @@ export function Modal({
   return createPortal(
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -62,14 +64,14 @@ export function Modal({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 8 }}
             transition={{ duration: 0.15 }}
-            className="glass-strong relative w-full max-w-md rounded-3xl p-6"
+            className={`glass-strong relative w-full ${maxWidth} max-h-[90vh] overflow-y-auto rounded-3xl p-5 sm:p-6 shadow-2xl`}
           >
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold">{title}</h2>
               <button
                 onClick={onClose}
                 aria-label="Close"
-                className="glass flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-3 hover:text-ink"
+                className="glass flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-3 hover:text-ink transition-colors"
               >
                 <XIcon className="h-3.5 w-3.5" />
               </button>

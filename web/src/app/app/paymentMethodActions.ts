@@ -18,19 +18,24 @@ function str(formData: FormData, key: string): string {
 }
 
 /** Builds a sensible display label when the user didn't type a custom one
- *  — e.g. "HDFC Bank Credit Card •••• 4242", "UPI · me@okhdfcbank". */
+ *  — e.g. "HDFC Bank Platinum Credit Card (Amazon Pay) •••• 4242", "UPI · khodidas@okhdfcbank". */
 function autoLabel(type: string, formData: FormData): string {
   const bankName = str(formData, "bank_name");
   const lastFour = str(formData, "last_four");
-  const upiId = str(formData, "upi_id");
+  const upiId = str(formData, "upi_id") || `${str(formData, "upi_username")}${str(formData, "upi_handle")}`;
   const walletName = str(formData, "wallet_name");
   const walletMobile = str(formData, "wallet_mobile");
+  const cardVariant = str(formData, "card_variant");
+  const coBranded = str(formData, "co_branded");
+
+  const variantText = cardVariant && cardVariant !== "standard" ? ` ${cardVariant}` : "";
+  const coBrandText = coBranded && coBranded !== "none" ? ` (${coBranded})` : "";
 
   switch (type) {
     case "credit_card":
-      return `${bankName} Credit Card${lastFour ? ` •••• ${lastFour}` : ""}`;
+      return `${bankName}${variantText} Credit Card${coBrandText}${lastFour ? ` •••• ${lastFour}` : ""}`;
     case "debit_card":
-      return `${bankName} Debit Card${lastFour ? ` •••• ${lastFour}` : ""}`;
+      return `${bankName}${variantText} Debit Card${coBrandText}${lastFour ? ` •••• ${lastFour}` : ""}`;
     case "upi":
       return `UPI · ${upiId}`;
     case "bank_transfer":
@@ -67,7 +72,13 @@ function parseAndValidate(formData: FormData): ParsedFields | { error: string } 
   const bankName = str(formData, "bank_name") || null;
   const cardNetwork = str(formData, "card_network") || null;
   const lastFour = str(formData, "last_four") || null;
-  const upiId = str(formData, "upi_id") || null;
+  let upiId = str(formData, "upi_id") || null;
+  const upiUsername = str(formData, "upi_username");
+  const upiHandle = str(formData, "upi_handle");
+  if (!upiId && upiUsername && upiHandle) {
+    upiId = `${upiUsername}${upiHandle}`;
+  }
+
   const walletName = str(formData, "wallet_name") || null;
   const walletMobile = str(formData, "wallet_mobile") || null;
 
@@ -78,7 +89,7 @@ function parseAndValidate(formData: FormData): ParsedFields | { error: string } 
     return { error: "Last 4 digits must be exactly 4 numbers." };
   }
   if (type === "upi" && (!upiId || !upiId.includes("@"))) {
-    return { error: "Enter a valid UPI ID (e.g. name@bank)." };
+    return { error: "Enter a valid UPI ID (e.g. username@handle)." };
   }
   if (type === "bank_transfer" && !bankName) {
     return { error: "Enter the bank name." };

@@ -46,12 +46,19 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# SubTrakr secrets
+# SubTrakr secrets & local backend data
 .env
 subtrakr-release.jks
 android/key.properties
 *.jks
 *.keystore
+*.db
+backend/sqlite/node_modules/
+
+# Node dependencies
+node_modules/
+web/node_modules/
+web/.next/
 
 # Claude Code local (personal) settings — not shared project config
 .claude/settings.local.json

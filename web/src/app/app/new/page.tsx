@@ -35,8 +35,21 @@ export default async function NewSubscriptionPage() {
           </Link>{" "}
           to track more.
         </div>
+      ) : !entities || entities.length === 0 ? (
+        <div className="glass rounded-3xl p-8 text-center space-y-4 text-ink-2">
+          <p className="text-base font-semibold text-ink">No entities found</p>
+          <p className="text-sm text-ink-3 max-w-md mx-auto">
+            Subscriptions are assigned to an entity (e.g. Personal or Company). Please create an entity on your Profile page first.
+          </p>
+          <Link
+            href="/app/profile"
+            className="inline-block brand-gradient rounded-xl px-5 py-2.5 text-xs font-bold text-[#08201a] transition hover:opacity-90"
+          >
+            Create entity in Profile
+          </Link>
+        </div>
       ) : (
-        <NewSubscriptionForm entities={entities ?? []} paymentMethods={paymentMethods ?? []} />
+        <NewSubscriptionForm entities={entities} paymentMethods={paymentMethods ?? []} />
       )}
     </div>
   );

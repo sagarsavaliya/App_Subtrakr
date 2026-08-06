@@ -11,7 +11,7 @@ import { useServerAction, type ActionResult } from "@/lib/useServerAction";
 export function ActionForm({
   action,
   onSuccess,
-  successMessage,
+  successMessage, 
   className,
   children,
 }: {

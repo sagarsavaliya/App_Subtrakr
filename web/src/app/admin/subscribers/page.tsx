@@ -36,75 +36,81 @@ export default async function SubscribersPage() {
         <span className="text-sm text-ink-3">{users.length} users</span>
       </div>
 
-      <div className="glass overflow-x-auto rounded-2xl">
-        <table className="w-full min-w-[640px] text-sm">
-          <thead>
-            <tr className="border-b border-white/10 text-left text-xs uppercase tracking-wider text-ink-3">
-              <th className="px-4 py-3">User</th>
-              <th className="px-4 py-3">Joined</th>
-              <th className="px-4 py-3">Plan</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Renews</th>
-              <th className="px-4 py-3 text-right">Tracked subs</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((u) => {
-              const billing = billingByUser.get(u.id);
-              const planName =
-                (billing?.plans as unknown as { name: string } | null)?.name ??
-                "Free";
-              const banned = !!u.banned_until && new Date(u.banned_until) > new Date();
-              return (
-                <tr
-                  key={u.id}
-                  className="group border-b border-white/5 transition-colors duration-150 hover:bg-white/[0.03]"
-                >
-                  <td className="px-4 py-3">
-                    <Link href={`/admin/subscribers/${u.id}`} className="block">
-                      <p className="font-medium transition-colors group-hover:text-glow">
-                        {(u.user_metadata?.full_name as string) ?? "—"}
-                        {banned && (
-                          <span className="ml-2 rounded-full bg-overdue/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-overdue">
-                            Suspended
-                          </span>
-                        )}
-                      </p>
-                      <p className="text-xs text-ink-3">
-                        {[u.email, u.phone ? `+${u.phone}` : null].filter(Boolean).join(" · ") ||
-                          "—"}
-                      </p>
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 text-ink-2">
-                    {u.created_at ? formatDate(u.created_at) : "—"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={
-                        planName === "Free" ? "text-ink-2" : "text-glow"
-                      }
-                    >
-                      {planName}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-ink-2">
-                    {billing?.status ?? "—"}
-                  </td>
-                  <td className="px-4 py-3 text-ink-2">
-                    {billing?.current_period_end
-                      ? formatDate(billing.current_period_end)
-                      : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono">
-                    {subCount.get(u.id) ?? 0}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      {users.length === 0 ? (
+        <div className="glass rounded-2xl p-8 text-center text-sm text-ink-3">
+          No registered subscribers yet.
+        </div>
+      ) : (
+        <div className="glass overflow-x-auto rounded-2xl">
+          <table className="w-full min-w-[640px] text-sm">
+            <thead>
+              <tr className="border-b border-white/10 text-left text-xs uppercase tracking-wider text-ink-3">
+                <th className="px-4 py-3">User</th>
+                <th className="px-4 py-3">Joined</th>
+                <th className="px-4 py-3">Plan</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Renews</th>
+                <th className="px-4 py-3 text-right">Tracked subs</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((u) => {
+                const billing = billingByUser.get(u.id);
+                const planName =
+                  (billing?.plans as unknown as { name: string } | null)?.name ??
+                  "Free";
+                const banned = !!u.banned_until && new Date(u.banned_until) > new Date();
+                return (
+                  <tr
+                    key={u.id}
+                    className="group border-b border-white/5 transition-colors duration-150 hover:bg-white/[0.03]"
+                  >
+                    <td className="px-4 py-3">
+                      <Link href={`/admin/subscribers/${u.id}`} className="block">
+                        <p className="font-medium transition-colors group-hover:text-glow">
+                          {(u.user_metadata?.full_name as string) ?? "—"}
+                          {banned && (
+                            <span className="ml-2 rounded-full bg-overdue/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-overdue">
+                              Suspended
+                            </span>
+                          )}
+                        </p>
+                        <p className="text-xs text-ink-3">
+                          {[u.email, u.phone ? `+${u.phone}` : null].filter(Boolean).join(" · ") ||
+                            "—"}
+                        </p>
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 text-ink-2">
+                      {u.created_at ? formatDate(u.created_at) : "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={
+                          planName === "Free" ? "text-ink-2" : "text-glow"
+                        }
+                      >
+                        {planName}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-ink-2">
+                      {billing?.status ?? "active"}
+                    </td>
+                    <td className="px-4 py-3 text-ink-2">
+                      {billing?.current_period_end
+                        ? formatDate(billing.current_period_end)
+                        : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono">
+                      {subCount.get(u.id) ?? 0}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

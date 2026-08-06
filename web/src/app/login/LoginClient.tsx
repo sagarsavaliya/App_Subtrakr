@@ -12,6 +12,7 @@ import {
   normalizePhone,
   type IdentifierType,
 } from "@/lib/identifier";
+import { formatAuthError, logAuthEvent } from "@/lib/authError";
 
 /** PRD F1 — a single 6-digit PIN is the only credential, for both phone and
  *  email accounts; there is no password anymore. Which channel an account
@@ -131,39 +132,49 @@ function LoginForm() {
           return setError("Enter a valid 10-digit mobile number.");
         }
         setLoading(true);
-        const { error } = await createClient().auth.signInWithPassword({
-          phone: normalizePhone(identifier),
-          password: pin,
-        });
-        setLoading(false);
-        if (error) {
-          setError(
-            error.message.toLowerCase().includes("invalid login")
-              ? "Wrong number/email or PIN."
-              : error.message,
-          );
+        try {
+          const { error } = await createClient().auth.signInWithPassword({
+            phone: normalizePhone(identifier),
+            password: pin,
+          });
+          setLoading(false);
+          if (error) {
+            logAuthEvent("signInWithPassword (phone)", { phone: normalizePhone(identifier) }, error);
+            setError(formatAuthError(error));
+            return;
+          }
+          logAuthEvent("signInWithPassword (phone) success", { phone: normalizePhone(identifier) });
+          return done();
+        } catch (err) {
+          setLoading(false);
+          logAuthEvent("signInWithPassword (phone) failed", { phone: normalizePhone(identifier) }, err);
+          setError(formatAuthError(err));
           return;
         }
-        return done();
       }
 
       if (identifierType === "email") {
         if (!isValidEmail(identifier)) return setError("Enter a valid email address.");
         setLoading(true);
-        const { error } = await createClient().auth.signInWithPassword({
-          email: identifier.trim(),
-          password: pin,
-        });
-        setLoading(false);
-        if (error) {
-          setError(
-            error.message.toLowerCase().includes("invalid login")
-              ? "Wrong number/email or PIN."
-              : error.message,
-          );
+        try {
+          const { error } = await createClient().auth.signInWithPassword({
+            email: identifier.trim(),
+            password: pin,
+          });
+          setLoading(false);
+          if (error) {
+            logAuthEvent("signInWithPassword (email)", { email: identifier.trim() }, error);
+            setError(formatAuthError(error));
+            return;
+          }
+          logAuthEvent("signInWithPassword (email) success", { email: identifier.trim() });
+          return done();
+        } catch (err) {
+          setLoading(false);
+          logAuthEvent("signInWithPassword (email) failed", { email: identifier.trim() }, err);
+          setError(formatAuthError(err));
           return;
         }
-        return done();
       }
 
       return setError("Enter your email or mobile number.");
@@ -175,28 +186,37 @@ function LoginForm() {
     if (identifierType === "email") {
       if (!isValidEmail(identifier)) return setError("Enter a valid email address.");
       setLoading(true);
-      const precheck = await fetch("/api/auth/email/precheck", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: identifier.trim() }),
-      });
-      const precheckBody = await precheck.json();
-      if (!precheck.ok) {
+      try {
+        const precheck = await fetch("/api/auth/email/precheck", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: identifier.trim() }),
+        });
+        const precheckBody = await precheck.json();
+        if (!precheck.ok) {
+          setLoading(false);
+          setError(precheckBody.error ?? "Could not verify that email.");
+          return;
+        }
+        const { error } = await createClient().auth.signInWithOtp({
+          email: identifier.trim(),
+          options: { shouldCreateUser: true, data: { full_name: name.trim() } },
+        });
         setLoading(false);
-        setError(precheckBody.error ?? "Could not verify that email.");
+        if (error) {
+          logAuthEvent("signInWithOtp (email)", { email: identifier.trim() }, error);
+          setError(formatAuthError(error));
+          return;
+        }
+        logAuthEvent("signInWithOtp (email) success", { email: identifier.trim() });
+        setStep("otp");
+        return;
+      } catch (err) {
+        setLoading(false);
+        logAuthEvent("submit signup (email) failed", { email: identifier.trim() }, err);
+        setError(formatAuthError(err));
         return;
       }
-      const { error } = await createClient().auth.signInWithOtp({
-        email: identifier.trim(),
-        options: { shouldCreateUser: true, data: { full_name: name.trim() } },
-      });
-      setLoading(false);
-      if (error) {
-        setError(error.message);
-        return;
-      }
-      setStep("otp");
-      return;
     }
 
     if (identifierType === "phone") {
@@ -204,6 +224,52 @@ function LoginForm() {
         return setError("Enter a valid 10-digit mobile number.");
       }
       setLoading(true);
+      try {
+        const res = await fetch("/api/auth/send-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone: normalizePhone(identifier) }),
+        });
+        const body = await res.json();
+        setLoading(false);
+        if (!res.ok) {
+          setError(body.error ?? "Could not send the code. Try again.");
+          if (body.retryAfterSeconds) setCooldownSeconds(body.retryAfterSeconds);
+          return;
+        }
+        setCooldownSeconds(60);
+        setStep("otp");
+        return;
+      } catch (err) {
+        setLoading(false);
+        logAuthEvent("submit send-otp (phone) failed", { phone: normalizePhone(identifier) }, err);
+        setError(formatAuthError(err));
+        return;
+      }
+    }
+
+    return setError("Enter your email or mobile number.");
+  }
+
+  async function resendOtp() {
+    if (cooldownSeconds > 0) return;
+    setError(null);
+    setLoading(true);
+    try {
+      if (identifierType === "email") {
+        const { error } = await createClient().auth.signInWithOtp({
+          email: identifier.trim(),
+          options: { shouldCreateUser: isSignUp && !forgotMode },
+        });
+        setLoading(false);
+        if (error) {
+          logAuthEvent("resendOtp (email)", { email: identifier.trim() }, error);
+          setError(formatAuthError(error));
+          return;
+        }
+        setCooldownSeconds(60);
+        return;
+      }
       const res = await fetch("/api/auth/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -217,43 +283,11 @@ function LoginForm() {
         return;
       }
       setCooldownSeconds(60);
-      setStep("otp");
-      return;
-    }
-
-    return setError("Enter your email or mobile number.");
-  }
-
-  async function resendOtp() {
-    if (cooldownSeconds > 0) return;
-    setError(null);
-    setLoading(true);
-    if (identifierType === "email") {
-      const { error } = await createClient().auth.signInWithOtp({
-        email: identifier.trim(),
-        options: { shouldCreateUser: isSignUp && !forgotMode },
-      });
+    } catch (err) {
       setLoading(false);
-      if (error) {
-        setError(error.message);
-        return;
-      }
-      setCooldownSeconds(60);
-      return;
+      logAuthEvent("resendOtp failed", {}, err);
+      setError(formatAuthError(err));
     }
-    const res = await fetch("/api/auth/send-otp", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone: normalizePhone(identifier) }),
-    });
-    const body = await res.json();
-    setLoading(false);
-    if (!res.ok) {
-      setError(body.error ?? "Could not send the code. Try again.");
-      if (body.retryAfterSeconds) setCooldownSeconds(body.retryAfterSeconds);
-      return;
-    }
-    setCooldownSeconds(60);
   }
 
   async function verifyOtp(e: React.FormEvent) {
@@ -262,33 +296,40 @@ function LoginForm() {
     setError(null);
     setLoading(true);
 
-    if (identifierType === "email") {
-      const { error } = await createClient().auth.verifyOtp({
-        email: identifier.trim(),
-        token: otp,
-        type: "email",
+    try {
+      if (identifierType === "email") {
+        const { error } = await createClient().auth.verifyOtp({
+          email: identifier.trim(),
+          token: otp,
+          type: "email",
+        });
+        setLoading(false);
+        if (error) {
+          logAuthEvent("verifyOtp (email)", { email: identifier.trim() }, error);
+          setError(formatAuthError(error));
+          return;
+        }
+        setStep("pin");
+        return;
+      }
+
+      const res = await fetch("/api/auth/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: normalizePhone(identifier), code: otp }),
       });
+      const body = await res.json();
       setLoading(false);
-      if (error) {
-        setError(error.message);
+      if (!res.ok) {
+        setError(body.error ?? "Incorrect code.");
         return;
       }
       setStep("pin");
-      return;
+    } catch (err) {
+      setLoading(false);
+      logAuthEvent("verifyOtp failed", {}, err);
+      setError(formatAuthError(err));
     }
-
-    const res = await fetch("/api/auth/verify-otp", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone: normalizePhone(identifier), code: otp }),
-    });
-    const body = await res.json();
-    setLoading(false);
-    if (!res.ok) {
-      setError(body.error ?? "Incorrect code.");
-      return;
-    }
-    setStep("pin");
   }
 
   async function setPinAndFinish(e: React.FormEvent) {
@@ -298,30 +339,37 @@ function LoginForm() {
     setError(null);
     setLoading(true);
 
-    if (identifierType === "email") {
-      // Already signed in (verifyOtp established the session) — this just
-      // finalizes the PIN as the account's password.
-      const { error } = await createClient().auth.updateUser({ password: pin });
+    try {
+      if (identifierType === "email") {
+        // Already signed in (verifyOtp established the session) — this just
+        // finalizes the PIN as the account's password.
+        const { error } = await createClient().auth.updateUser({ password: pin });
+        setLoading(false);
+        if (error) {
+          logAuthEvent("updateUser PIN (email)", { email: identifier.trim() }, error);
+          setError(formatAuthError(error));
+          return;
+        }
+        return done();
+      }
+
+      const res = await fetch("/api/auth/complete-signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: normalizePhone(identifier), name: name.trim(), pin }),
+      });
+      const body = await res.json();
       setLoading(false);
-      if (error) {
-        setError(error.message);
+      if (!res.ok) {
+        setError(body.error ?? "Could not create your account. Try again.");
         return;
       }
-      return done();
+      done();
+    } catch (err) {
+      setLoading(false);
+      logAuthEvent("setPinAndFinish failed", {}, err);
+      setError(formatAuthError(err));
     }
-
-    const res = await fetch("/api/auth/complete-signup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone: normalizePhone(identifier), name: name.trim(), pin }),
-    });
-    const body = await res.json();
-    setLoading(false);
-    if (!res.ok) {
-      setError(body.error ?? "Could not create your account. Try again.");
-      return;
-    }
-    done();
   }
 
   // --- Forgot-PIN wizard — reuses the same identifier/otp/pin state and
@@ -333,14 +381,20 @@ function LoginForm() {
     if (!identifierType) return setError("Enter your email or mobile number.");
     setError(null);
     setLoading(true);
-    await fetch("/api/auth/reset-pin/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ identifier }),
-    });
-    setLoading(false);
-    setCooldownSeconds(60);
-    setStep("otp");
+    try {
+      await fetch("/api/auth/reset-pin/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifier }),
+      });
+      setLoading(false);
+      setCooldownSeconds(60);
+      setStep("otp");
+    } catch (err) {
+      setLoading(false);
+      logAuthEvent("submitForgotIdentifier failed", {}, err);
+      setError(formatAuthError(err));
+    }
   }
 
   async function verifyForgotOtp(e: React.FormEvent) {
@@ -349,33 +403,40 @@ function LoginForm() {
     setError(null);
     setLoading(true);
 
-    if (identifierType === "email") {
-      const { error } = await createClient().auth.verifyOtp({
-        email: identifier.trim(),
-        token: otp,
-        type: "email",
+    try {
+      if (identifierType === "email") {
+        const { error } = await createClient().auth.verifyOtp({
+          email: identifier.trim(),
+          token: otp,
+          type: "email",
+        });
+        setLoading(false);
+        if (error) {
+          logAuthEvent("verifyForgotOtp (email)", {}, error);
+          setError(formatAuthError(error));
+          return;
+        }
+        setStep("pin");
+        return;
+      }
+
+      const res = await fetch("/api/auth/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: normalizePhone(identifier), code: otp }),
       });
+      const body = await res.json();
       setLoading(false);
-      if (error) {
-        setError(error.message);
+      if (!res.ok) {
+        setError(body.error ?? "Incorrect code.");
         return;
       }
       setStep("pin");
-      return;
+    } catch (err) {
+      setLoading(false);
+      logAuthEvent("verifyForgotOtp failed", {}, err);
+      setError(formatAuthError(err));
     }
-
-    const res = await fetch("/api/auth/verify-otp", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone: normalizePhone(identifier), code: otp }),
-    });
-    const body = await res.json();
-    setLoading(false);
-    if (!res.ok) {
-      setError(body.error ?? "Incorrect code.");
-      return;
-    }
-    setStep("pin");
   }
 
   async function setNewPinAndFinish(e: React.FormEvent) {
@@ -385,40 +446,48 @@ function LoginForm() {
     setError(null);
     setLoading(true);
 
-    if (identifierType === "email") {
-      // verifyForgotOtp already established a session for this account.
-      const { error } = await createClient().auth.updateUser({ password: pin });
-      setLoading(false);
-      if (error) {
-        setError(error.message);
+    try {
+      if (identifierType === "email") {
+        // verifyForgotOtp already established a session for this account.
+        const { error } = await createClient().auth.updateUser({ password: pin });
+        setLoading(false);
+        if (error) {
+          logAuthEvent("setNewPinAndFinish (email)", {}, error);
+          setError(formatAuthError(error));
+          return;
+        }
+        return done();
+      }
+
+      const res = await fetch("/api/auth/reset-pin/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: normalizePhone(identifier), pin }),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        setLoading(false);
+        setError(body.error ?? "Could not reset your PIN. Try again.");
         return;
       }
-      return done();
-    }
-
-    const res = await fetch("/api/auth/reset-pin/complete", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone: normalizePhone(identifier), pin }),
-    });
-    const body = await res.json();
-    if (!res.ok) {
+      // Unlike the email path, phone verification doesn't establish a
+      // session on its own — sign in now that the new PIN is set.
+      const { error } = await createClient().auth.signInWithPassword({
+        phone: normalizePhone(identifier),
+        password: pin,
+      });
       setLoading(false);
-      setError(body.error ?? "Could not reset your PIN. Try again.");
-      return;
+      if (error) {
+        logAuthEvent("setNewPinAndFinish signIn (phone)", {}, error);
+        setError(formatAuthError(error));
+        return;
+      }
+      done();
+    } catch (err) {
+      setLoading(false);
+      logAuthEvent("setNewPinAndFinish failed", {}, err);
+      setError(formatAuthError(err));
     }
-    // Unlike the email path, phone verification doesn't establish a
-    // session on its own — sign in now that the new PIN is set.
-    const { error } = await createClient().auth.signInWithPassword({
-      phone: normalizePhone(identifier),
-      password: pin,
-    });
-    setLoading(false);
-    if (error) {
-      setError(error.message);
-      return;
-    }
-    done();
   }
 
   const identifierField = (

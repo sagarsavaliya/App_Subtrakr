@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { SegmentedCodeInput } from "@/components/SegmentedCodeInput";
+import { formatAuthError, logAuthEvent } from "@/lib/authError";
 
 type ForgotStep = "identifier" | "otp" | "pin";
 
@@ -36,22 +37,26 @@ export default function LoginForm() {
     if (!/^\d{6}$/.test(pin)) return setError("Your PIN must be exactly 6 digits.");
     setError(null);
     setLoading(true);
-    const { error } = await createClient().auth.signInWithPassword({
-      email,
-      password: pin,
-    });
-    if (error) {
-      setError(
-        error.message.toLowerCase().includes("invalid login")
-          ? "Wrong email or PIN."
-          : error.message,
-      );
+    try {
+      const { error } = await createClient().auth.signInWithPassword({
+        email,
+        password: pin,
+      });
+      if (error) {
+        logAuthEvent("Admin signInWithPassword", { email }, error);
+        setError(formatAuthError(error));
+        setLoading(false);
+        return;
+      }
+      logAuthEvent("Admin signInWithPassword success", { email });
+      // Membership is checked server-side in the admin layout.
+      router.replace("/admin");
+      router.refresh();
+    } catch (err) {
+      logAuthEvent("Admin signInWithPassword exception", { email }, err);
+      setError(formatAuthError(err));
       setLoading(false);
-      return;
     }
-    // Membership is checked server-side in the admin layout.
-    router.replace("/admin");
-    router.refresh();
   }
 
   function resetForgot() {
@@ -69,27 +74,39 @@ export default function LoginForm() {
     if (!email.trim()) return setError("Enter your admin email.");
     setError(null);
     setLoading(true);
-    await fetch("/api/auth/reset-pin/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ identifier: email.trim() }),
-    });
-    setLoading(false);
-    setCooldownSeconds(60);
-    setForgotStep("otp");
+    try {
+      await fetch("/api/auth/reset-pin/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifier: email.trim() }),
+      });
+      setLoading(false);
+      setCooldownSeconds(60);
+      setForgotStep("otp");
+    } catch (err) {
+      logAuthEvent("Admin submitForgotIdentifier exception", { email }, err);
+      setError(formatAuthError(err));
+      setLoading(false);
+    }
   }
 
   async function resendForgotOtp() {
     if (cooldownSeconds > 0) return;
     setError(null);
     setLoading(true);
-    await fetch("/api/auth/reset-pin/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ identifier: email.trim() }),
-    });
-    setLoading(false);
-    setCooldownSeconds(60);
+    try {
+      await fetch("/api/auth/reset-pin/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifier: email.trim() }),
+      });
+      setLoading(false);
+      setCooldownSeconds(60);
+    } catch (err) {
+      logAuthEvent("Admin resendForgotOtp exception", { email }, err);
+      setError(formatAuthError(err));
+      setLoading(false);
+    }
   }
 
   async function verifyForgotOtp(e: React.FormEvent) {
@@ -97,17 +114,24 @@ export default function LoginForm() {
     if (!/^\d{6}$/.test(otp)) return setError("Enter the 6-digit code.");
     setError(null);
     setLoading(true);
-    const { error } = await createClient().auth.verifyOtp({
-      email: email.trim(),
-      token: otp,
-      type: "email",
-    });
-    setLoading(false);
-    if (error) {
-      setError(error.message);
-      return;
+    try {
+      const { error } = await createClient().auth.verifyOtp({
+        email: email.trim(),
+        token: otp,
+        type: "email",
+      });
+      setLoading(false);
+      if (error) {
+        logAuthEvent("Admin verifyForgotOtp", { email }, error);
+        setError(formatAuthError(error));
+        return;
+      }
+      setForgotStep("pin");
+    } catch (err) {
+      logAuthEvent("Admin verifyForgotOtp exception", { email }, err);
+      setError(formatAuthError(err));
+      setLoading(false);
     }
-    setForgotStep("pin");
   }
 
   async function setNewPinAndFinish(e: React.FormEvent) {
@@ -116,15 +140,22 @@ export default function LoginForm() {
     if (newPin !== confirmNewPin) return setError("PINs don't match.");
     setError(null);
     setLoading(true);
-    // verifyForgotOtp already established a session for this account.
-    const { error } = await createClient().auth.updateUser({ password: newPin });
-    setLoading(false);
-    if (error) {
-      setError(error.message);
-      return;
+    try {
+      // verifyForgotOtp already established a session for this account.
+      const { error } = await createClient().auth.updateUser({ password: newPin });
+      setLoading(false);
+      if (error) {
+        logAuthEvent("Admin setNewPinAndFinish", { email }, error);
+        setError(formatAuthError(error));
+        return;
+      }
+      router.replace("/admin");
+      router.refresh();
+    } catch (err) {
+      logAuthEvent("Admin setNewPinAndFinish exception", { email }, err);
+      setError(formatAuthError(err));
+      setLoading(false);
     }
-    router.replace("/admin");
-    router.refresh();
   }
 
   const inputClass =

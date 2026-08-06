@@ -127,7 +127,10 @@ export async function adminChangePlan(formData: FormData): Promise<ActionResult>
   if (error) return { ok: false, message: error.message };
   revalidatePath(`/admin/subscribers/${userId}`);
   revalidatePath("/admin/subscribers");
-  return { ok: true, message: "Plan updated." };
+  revalidatePath("/app");
+  revalidatePath("/app/billing");
+  revalidatePath("/app/profile");
+  return { ok: true, message: "Plan updated successfully." };
 }
 
 export async function adminMarkSubscriptionPaid(formData: FormData): Promise<ActionResult> {

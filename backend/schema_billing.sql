@@ -236,3 +236,34 @@ ALTER TABLE billing_transactions DROP CONSTRAINT IF EXISTS billing_transactions_
 ALTER TABLE subscriber_billing DROP CONSTRAINT IF EXISTS subscriber_billing_billing_cycle_check;
 ALTER TABLE subscriber_billing ADD CONSTRAINT subscriber_billing_billing_cycle_check
   CHECK (billing_cycle IN ('monthly','quarterly','half_yearly','yearly'));
+
+-- ── Trigger: Auto-create subscriber_billing & single Personal entity on user signup ──
+CREATE OR REPLACE FUNCTION public.handle_new_user_signup()
+RETURNS TRIGGER AS $$
+DECLARE
+  free_plan_id UUID;
+BEGIN
+  -- 1. Create a single default "Personal" entity if none exists for this user
+  IF NOT EXISTS (SELECT 1 FROM public.entities WHERE user_id = NEW.id AND name = 'Personal') THEN
+    INSERT INTO public.entities (user_id, name, type)
+    VALUES (NEW.id, 'Personal', 'personal');
+  END IF;
+
+  -- 2. Auto-subscribe new user to the Free plan in subscriber_billing
+  SELECT id INTO free_plan_id FROM public.plans WHERE code = 'free' LIMIT 1;
+  IF free_plan_id IS NOT NULL THEN
+    INSERT INTO public.subscriber_billing (user_id, plan_id, status, billing_cycle)
+    VALUES (NEW.id, free_plan_id, 'active', 'monthly')
+    ON CONFLICT (user_id) DO NOTHING;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW
+  EXECUTE FUNCTION public.handle_new_user_signup();
+

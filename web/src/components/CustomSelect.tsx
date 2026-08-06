@@ -125,7 +125,7 @@ export function CustomSelect({ name, options, defaultValue, placeholder, onChang
         exit={{ opacity: 0, y: -6, scale: 0.98 }}
         transition={{ duration: 0.15, ease: "easeOut" }}
         style={{ position: "fixed", top: rect.top, left: rect.left, width: rect.width }}
-        className="z-50 max-h-60 overflow-auto rounded-2xl border border-white/10 bg-elevated2 p-1.5 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.65)]"
+        className="z-50 max-h-60 overflow-auto rounded-lg border border-white/10 bg-elevated2 p-1.5 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.65)]"
       >
         {options.map((o, i) => {
           const isSelected = o.value === value;
@@ -139,7 +139,7 @@ export function CustomSelect({ name, options, defaultValue, placeholder, onChang
                 select(o.value);
                 setOpen(false);
               }}
-              className={`flex cursor-pointer items-center justify-between rounded-xl px-3 py-2.5 text-sm transition-colors duration-150 ${
+              className={`flex cursor-pointer items-center justify-between rounded-md px-3 py-2.5 text-sm transition-colors duration-150 ${
                 i === highlighted ? "bg-glow/10 text-ink" : "text-ink-2"
               } ${isSelected ? "font-medium text-glow" : ""}`}
             >
@@ -162,7 +162,7 @@ export function CustomSelect({ name, options, defaultValue, placeholder, onChang
         onKeyDown={handleKeyDown}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className="glass flex w-full cursor-pointer items-center justify-between rounded-3xl px-4 py-2 text-left text-sm text-ink outline-none transition-colors duration-200 hover:border-white/20 focus:border-glow/40"
+        className="glass flex w-full cursor-pointer items-center justify-between rounded-lg px-4 py-2.5 text-left text-sm text-ink outline-none transition-colors duration-200 hover:border-white/20 focus:border-glow/40"
       >
         <span className={`min-w-0 truncate ${selected ? "" : "text-ink-3"}`}>
           {selected?.label ?? placeholder ?? "Select…"}

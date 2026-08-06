@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { adminChangePlan } from "@/app/admin/actions";
 import { ActionForm } from "@/components/ActionForm";
 import { CustomSelect } from "@/components/CustomSelect";
@@ -15,8 +16,14 @@ export function PlanOverrideForm({
   plans: Plan[];
   currentPlanId?: string;
 }) {
+  const router = useRouter();
+
   return (
-    <ActionForm action={adminChangePlan} className="space-y-3">
+    <ActionForm
+      action={adminChangePlan}
+      onSuccess={() => router.refresh()}
+      className="space-y-3"
+    >
       {(pending) => (
         <>
           <input type="hidden" name="user_id" value={userId} />

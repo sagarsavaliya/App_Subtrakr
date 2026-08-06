@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   adminSuspendUser,
@@ -14,7 +15,10 @@ const btnClass =
   "glass flex cursor-pointer items-center gap-2 rounded-xl px-4 py-2.5 text-sm transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-50";
 
 export function SuspendToggleButton({ userId, banned }: { userId: string; banned: boolean }) {
-  const { run, pending } = useServerAction(banned ? adminUnbanUser : adminSuspendUser);
+  const router = useRouter();
+  const { run, pending } = useServerAction(banned ? adminUnbanUser : adminSuspendUser, {
+    onSuccess: () => router.refresh(),
+  });
 
   function onClick() {
     if (!banned && !confirm("Suspend this account? They won't be able to sign in until unsuspended.")) {
@@ -63,7 +67,10 @@ export function SendPinResetButton({ userId }: { userId: string }) {
 }
 
 export function DeleteAccountButton({ userId, name }: { userId: string; name: string }) {
-  const { run, pending } = useServerAction(adminDeleteUser);
+  const router = useRouter();
+  const { run, pending } = useServerAction(adminDeleteUser, {
+    onSuccess: () => router.push("/admin/subscribers"),
+  });
 
   function onClick() {
     if (
